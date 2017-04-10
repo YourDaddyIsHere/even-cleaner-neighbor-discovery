@@ -63,7 +63,6 @@ class NeighborDiscover(DatagramProtocol):
         self.my_key = self.crypto.generate_key(u"medium")
         self.my_identity = self.crypto.key_to_hash(self.my_key.pub())
         self.my_public_key = self.crypto.key_to_bin(self.my_key.pub())
-        #self.container = [self.start_header,chr(246)]
         self.reactor = reactor
         self.listening_port=self.reactor.listenUDP(self.private_port, self)
 

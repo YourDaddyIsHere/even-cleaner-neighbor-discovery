@@ -73,12 +73,12 @@ class Message:
         assert self.start_header != None
         assert self.my_identity != None
         assert self.crypto != None
-        identifier = int(random() * 2 ** 16)
+        self.identifier = int(random() * 2 ** 16)
         data = [inet_aton(self.destination_address[0]), self.encoder_and_decoder_2Bytes.pack(self.destination_address[1]),
                 inet_aton(self.source_private_address[0]), self.encoder_and_decoder_2Bytes.pack(self.source_private_address[1]),
                 inet_aton(self.source_public_address[0]), self.encoder_and_decoder_2Bytes.pack(self.source_public_address[1]),
                 self.encoder_and_decoder_1Byte.pack(self._encode_advice_map[True] | self._encode_connection_type_map[u"unknown"] | self._encode_sync_map[False]),
-                self.encoder_and_decoder_2Bytes.pack(identifier)]
+                self.encoder_and_decoder_2Bytes.pack(self.identifier)]
         container = [self.start_header,chr(246)]
         container.append(self.my_identity)
         now = self.encoder_and_decoder_global_time.pack(self.global_time)
@@ -124,10 +124,10 @@ class Message:
         assert self.start_header != None
         assert self.my_identity != None
         assert self.crypto != None
-        identifier = int(random() * 2 ** 16)
+        self.identifier = int(random() * 2 ** 16)
         data = (inet_aton(self.private_address_to_puncture[0]), self.encoder_and_decoder_2Bytes.pack(self.private_address_to_puncture[1]),
                 inet_aton(self.public_address_to_puncture[0]), self.encoder_and_decoder_2Bytes.pack(self.public_address_to_puncture[1]),
-                self.encoder_and_decoder_2Bytes.pack(identifier))
+                self.encoder_and_decoder_2Bytes.pack(self.identifier))
         container = [self.start_header,chr(250)]
         now = self.encoder_and_decoder_global_time.pack(self.global_time)
         container.append(now)
@@ -165,7 +165,7 @@ class Message:
         assert self.global_time!=None
         assert self.start_header != None
         assert self.crypto != None
-        identifier = int(random() * 2 ** 16)
+        self.identifier = int(random() * 2 ** 16)
         container = [self.start_header,chr(248)]
         my_public_key = self.my_public_key
         container.extend((self.encoder_and_decoder_2Bytes.pack(len(my_public_key)), my_public_key))
