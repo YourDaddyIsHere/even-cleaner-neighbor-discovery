@@ -263,21 +263,12 @@ class Trusted_Walker_Database:
         db_result = cursor.fetchone()[0]
         return db_result if db_result is not None else -1
 
-    def get_all_members(self):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * from member")
-        self.conn.commit()
-        members = cursor.fetchall()
-        for member in members:
-            #print type(member[0])
-            print member
+
     def close(self):
         self.conn.close()
 
 
-if __name__ == "__main__":
-    TW_DB = Trusted_Walker_Database()
-    TW_DB.get_all_members()
+
 
 
 
