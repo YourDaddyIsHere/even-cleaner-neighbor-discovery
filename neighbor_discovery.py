@@ -2,6 +2,7 @@ from __future__ import print_function
 from twisted.internet.protocol import DatagramProtocol
 import logging
 import socket
+from hashlib import sha1
 from random import random
 from crypto import ECCrypto
 from struct import unpack_from
@@ -12,6 +13,7 @@ from twisted.internet import task
 from twisted.internet import reactor
 from struct import pack, unpack_from, Struct
 from Message import Message
+from database import Trusted_Walker_Database
 import threading
 import util
 logging.basicConfig(level=logging.DEBUG, filename="logfile", filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
@@ -65,6 +67,7 @@ class NeighborDiscover(DatagramProtocol):
         self.my_public_key = self.crypto.key_to_bin(self.my_key.pub())
         self.reactor = reactor
         self.listening_port=self.reactor.listenUDP(self.private_port, self)
+        self.database = Trusted_Walker_Database()
 
     def startProtocol(self):
         print("neighbor discovery module started")
@@ -72,6 +75,9 @@ class NeighborDiscover(DatagramProtocol):
         if(self.is_tracker==False):
             loop = task.LoopingCall(self.visit_a_neighbor)
             loop.start(5.0)
+
+    def stopProtocol(self):
+        self.database.close()
 
     #take one step,visit a known neighbor (candidate)
     def visit_a_neighbor(self):
@@ -87,6 +93,7 @@ class NeighborDiscover(DatagramProtocol):
         self.transport.write(message_introduction_request.packet,neighbor_to_walk_ADDR)
         logger.info("take step to: "+str(neighbor_to_walk_ADDR))
 
+
     def datagramReceived(self, data, addr):
         """
         built-in function of twisted.internet.protocol.DatagramProtocol.
@@ -98,6 +105,7 @@ class NeighborDiscover(DatagramProtocol):
 
     def handle_message(self,packet,addr):
         #call different message handler according to its message_type
+        #TODO:we should ask for public key of other members here
         message_type = ord(packet[22])
         logger.info("message id is:"+str(message_type))
         print("message id is:"+str(message_type))
@@ -115,6 +123,17 @@ class NeighborDiscover(DatagramProtocol):
             self.on_puncture_request(packet,addr)
         if message_type == 249:
             print("here is a puncture")
+        if message_type == 248:
+            print("here is an dispersy-identity")
+            self.on_identity(packet,addr)
+        if message_type == 2:
+            print("here is a crawl_request")
+        if message_type == 3:
+            print("here is a crawl_response")
+            self.on_crawl_response(packet,addr)
+        if message_type == 4:
+            print("here is a crawl_resume.............................................................:D")
+            self.on_crawl_resume(packet,addr)
 
     def on_introduction_request(self,packet,addr):
         """
@@ -125,7 +144,7 @@ class NeighborDiscover(DatagramProtocol):
         message_request = Message(packet=packet)
         message_request.decode_introduction_request()
         self.global_time = message_request.global_time
-        requester_neighbor = Neighbor(message_request.source_private_address,addr)
+        requester_neighbor = Neighbor(message_request.source_private_address,addr,identity = message_request.sender_identity)
         self.neighbor_group.add_neighbor_to_incoming_list(requester_neighbor)
         #do public_address_vote
         self.public_address_vote(message_request.destination_address,addr)
@@ -161,13 +180,26 @@ class NeighborDiscover(DatagramProtocol):
         message.decode_introduction_response()
         self.global_time = message.global_time
         self.public_address_vote(message.destination_address,addr)
-        message_sender=Neighbor(message.source_private_address,addr)
+        message_sender=Neighbor(message.source_private_address,addr,identity = message.sender_identity)
         self.neighbor_group.add_neighbor_to_outgoing_list(message_sender)
         print("the introduced candidate is: "+ str(message.public_introduction_address))
         if message.private_introduction_address!=("0.0.0.0",0) and message.public_introduction_address!=("0.0.0.0",0):
             introduced_neighbor = Neighbor(message.private_introduction_address,message.public_introduction_address)
             self.neighbor_group.add_neighbor_to_intro_list(introduced_neighbor)
             print("new candidate has been added to intro list")
+        #send a missing identity by the way
+        message_missing_identity = Message(neighbor_discovery=self,the_missing_identity=message.sender_identity)
+        message_missing_identity.encode_missing_identity()
+        self.transport.write(message_missing_identity.packet,addr)
+
+        identity = message.sender_identity
+        member = self.database.get_member(identity = identity)
+        if member is not None:
+            public_key = member[1]
+            requested_sequence_number = self.database.get_latest_sequence_number(public_key=public_key) +1
+            message_crawl_request = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
+            message_crawl_request.encode_crawl_request()
+            self.transport.write(message_crawl_request.packet,addr)
 
     def on_puncture_request(self,packet,addr):
         """
@@ -199,6 +231,44 @@ class NeighborDiscover(DatagramProtocol):
         message_identity = Message(neighbor_discovery=self)
         message_identity.encode_identity()
         self.transport.write(message_identity.packet,addr)
+
+    def on_identity(self,packet,addr):
+        message_identity=Message(packet=packet)
+        message_identity.decode_identity()
+        sender_identity = sha1(message_identity.key_received).digest()
+        if(self.database.get_member(public_key=message_identity.key_received)==None):
+            self.database.add_member(identity=sender_identity,public_key=message_identity.key_received)
+        self.neighbor_group.associate_neigbhor_with_public_key(public_ip=addr,identity=sender_identity,public_key = message_identity.key_received)
+
+
+
+    def on_crawl_request(self,packet,addr):
+        pass
+
+    def on_crawl_response(self,packet,addr):
+        message_crawl_response = Message(packet=packet)
+        message_crawl_response.decode_crawl_response()
+        block = message_crawl_response.block
+        block.show()
+        #it is possible that some guys send us a send block twice due to network latency
+        #but we add a block to the database without checking whether it is already in the database
+        #it is time consuming to check it using SELECT ... WHERE has_requester =? 
+        #if a block is already in database, the database will returns a PRIMARY KEY constraint error. It does no harm to us
+        self.database.add_block(block)
+
+    def on_crawl_resume(self,packet,addr):
+        message_resume = Message(packet=packet)
+        message_resume.decode_crawl_resume()
+        identity = message_resume.sender_identity
+        #now we already have the identity (20bytes hash of public key)
+        #we can use it to retrieve public key in the database
+        #and get the latest sequence number of this public key
+        member = self.database.get_member(identity=identity)
+        public_key = str(member[1])
+        latest_sequence_number = self.database.get_latest_sequence_number(public_key=public_key)
+        message_crawl_request = Message(neighbor_discovery=self,requested_sequence_number=latest_sequence_number+1)
+        message_crawl_request.encode_crawl_request()
+        self.transport.write(message_crawl_request.packet,addr)
 
     def public_address_vote(self,address,neighbor_addr):
         """

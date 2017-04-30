@@ -22,7 +22,7 @@ class NeighborGroup:
 		self.outgoing_neighbors = [] #49.75% probability
 		self.incoming_neighbors = [] #24.825%probability
 		self.intro_neighbors= [] #24.825%probability
-		self.trusted_neighbors.append(Neighbor(("127.0.0.1",1235),("127.0.0.1",1235),"255,255.255.255"))
+		#self.trusted_neighbors.append(Neighbor(("127.0.0.1",1235),("127.0.0.1",1235),"255,255.255.255"))
 		self.trusted_neighbors.append(Neighbor((u"130.161.119.206"      , 6421),(u"130.161.119.206"      , 6421),"255,255.255.255"))
 		self.trusted_neighbors.append(Neighbor((u"130.161.119.206"      , 6422),(u"130.161.119.206"      , 6422),"255,255.255.255"))
 		self.trusted_neighbors.append(Neighbor((u"131.180.27.155"       , 6423),(u"131.180.27.155"       , 6423),"255,255.255.255"))
@@ -61,10 +61,37 @@ class NeighborGroup:
 
 	#check whether the two neighbors are the same
 	def is_same_neighbor(self,neighbor1,neighbor2):
-		if(neighbor1.get_private_address()==neighbor2.get_private_address() and neighbor1.get_public_address()==neighbor2.get_public_address()):
+		if(neighbor1.get_private_address()==neighbor2.get_private_address() and neighbor1.get_public_address()==neighbor2.get_public_address() and neighbor1.identity == neighbor2.identity):
 			return True
 		else:
 			return False
+
+	def associate_neigbhor_with_public_key(self,private_ip = "0.0.0.0",public_ip = "0.0.0.0",identity = None,public_key= None):
+		"""
+		because not every message contains public key or its hash, so it is common that we have
+		some neighbors without identity or public key (e.g. intro-neighbors)
+
+		for this member, it is not reliable to identify them via public ip and private ip: image that
+		two neighbors shares a same public ip or even a private ip (two instances running with different NATs but
+		still with a same outmost NAT). Or even worse, the neighbor dosen't report its public and private ip (e.g. 
+		dispersy-identity message, in this case, we only know its ip we see, without knowing it is public or private).
+
+		for those neighbors, we don't know their identity so we can't send a missing-identity message, so we will never be
+		able to get their public key. Until we walk to them and receive an introduction-response. So, before walking to them,
+		we should completely ignore such neighbors, so we can ignore all neighbors in intro_list
+
+		"""
+		for neighbor in self.trusted_neighbors:
+			if(neighbor.get_private_ip()==private_ip or neighbor.get_public_ip()==public_ip) and neighbor.identity==identity:
+				neighbor.public_key = public_key
+
+		for neighbor in self.incoming_neighbors:
+			if(neighbor.get_private_ip()==private_ip or neighbor.get_public_ip()==public_ip) and neighbor.identity==identity:
+				neighbor.public_key = public_key
+
+
+
+
 
 
 	def clean_stale_neighbors(self):
