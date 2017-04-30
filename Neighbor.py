@@ -11,7 +11,7 @@ class Neighbor:
 	last_outgoing_time = 0 
 	last_incoming_time = 0
 	last_intro_time = 0
-	def __init__(self,private_ip,public_ip,netmask="255.255.255.0"):
+	def __init__(self,private_ip,public_ip,netmask="255.255.255.0",identity=None,public_key=None):
 		assert isinstance(private_ip,tuple)
 		assert isinstance(netmask,str)
 		self.private_address = private_ip
@@ -20,9 +20,13 @@ class Neighbor:
 		self.last_incoming_time = time.time()
 		self.last_intro_time = time.time()
 		self.NETMASK = netmask
+		self.identity = identity
+		self.public_key = public_key
 
 	def get_private_address(self):
 		return self.private_address
+	def get_private_ip(self):
+		return socket.gethostbyname(self.private_address[0])
 	def get_public_ip(self):
 		public_ip = socket.gethostbyname(self.public_address[0])
 		return public_ip

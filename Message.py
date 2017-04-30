@@ -1,10 +1,45 @@
 from random import random
-from struct import pack, unpack_from, Struct
+from struct import pack, unpack_from, Struct,calcsize
 from socket import inet_ntoa, inet_aton
+from database import Block
+HASH_LENGTH = 32
+SIG_LENGTH = 64
+PK_LENGTH = 74
+
+EMPTY_HASH = '1' * HASH_LENGTH  # Used in a request when the response data is not yet available
+GENESIS_ID = '0' * HASH_LENGTH  # ID of the first block of the chain.
+
+# Formatting of the signature packet
+# TotalUp TotalDown Sequence_number, previous_hash
+append_format = 'Q Q i ' + str(HASH_LENGTH) + 's'
+# Up, Down
+common_data_format = 'I I'
+# [Up, Down,
+#  TotalUpRequester, TotalDownRequester, sequence_number_requester, previous_hash_requester,
+#  TotalUpResponder, TotalDownResponder, sequence_number_responder, previous_hash_responder]
+signature_format = ' '.join(["!", common_data_format, append_format, append_format])
+# PK_requester, PK_responder, Up, Down,
+# TotalUpRequester, TotalDownRequester, sequence_number_requester, previous_hash_requester, signature_requester
+requester_half_format = str(PK_LENGTH) + 's ' + str(PK_LENGTH) + 's ' + common_data_format + \
+                        ' ' + append_format + ' ' + str(SIG_LENGTH) + 's '
+signature_size = calcsize(signature_format)
+append_size = calcsize(append_format)
+
+crawl_request_format = 'i'
+crawl_request_size = calcsize(crawl_request_format)
+
+# [signature, pk]
+authentication_format = str(PK_LENGTH) + 's ' + str(SIG_LENGTH) + 's '
+# [Up, Down, TotalUpRequester, TotalDownRequester, sequence_number_requester, previous_hash_requester,
+#   TotalUpResponder, TotalDownResponder, sequence_number_responder, previous_hash_responder,
+#   signature_requester, pk_requester, signature_responder, pk_responder]
+crawl_response_format = signature_format + authentication_format + authentication_format
+crawl_response_size = calcsize(crawl_response_format)
 
 class Message:
     def __init__(self,neighbor_discovery=None,destination_address=None,source_private_address=None,source_public_address=None,private_introduction_address=None,public_introduction_address=None,
-                private_address_to_puncture=None,public_address_to_puncture=None,identifier=None,global_time=0,signature=None,message_type=None,packet=None):
+                private_address_to_puncture=None,public_address_to_puncture=None,the_missing_identity=None,key_received=None,requested_sequence_number=None,block=None,identifier=None,global_time=0,signature=None,message_type=None,packet=None,
+                sender_identity=None):
         """
         @destination_address:the address that this message should be sent to, it is used for the receiver to do public address vote
         @source_private_address:the private address pair of the message sender
@@ -22,6 +57,7 @@ class Message:
         @my_identity: it is my member id, a member id is a 20 bytes hash of my public key
         @start header:22 bytes string, 1 byte for dispersy version, 1 byte for community version, 20 bytes for master member identity of this community
         @global_time: a integer representing the logical time, similar to lamport clock but with only one dimension
+        @the_missing_identity: the member id of the member whose public key we don't have
         """
         self.destination_address = destination_address
         self.source_private_address = source_private_address
@@ -35,6 +71,11 @@ class Message:
         self.signature = signature
         self.message_type =message_type
         self.packet = packet
+        self.the_missing_identity=the_missing_identity
+        self.key_received=key_received
+        self.sender_identity=sender_identity
+        self.requested_sequence_number = requested_sequence_number
+        self.block = block
 
         if neighbor_discovery:
             self.crypto = neighbor_discovery.crypto
@@ -85,8 +126,8 @@ class Message:
         container.append(now)
         container.extend(data)
         packet = "".join(container)
-        signiture = self.crypto.create_signature(self.my_key, packet)
-        self.packet = packet + signiture
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
 
     def encode_introduction_response(self):
         #(identifier,destination_address,source_private_address,source_public_address,private_introduction_address,public_introduction_address)--->self.packet
@@ -113,8 +154,8 @@ class Message:
         container.append(now)
         container.extend(data)
         packet = "".join(container)
-        signiture = self.crypto.create_signature(self.my_key, packet)
-        self.packet = packet + signiture
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
 
     def encode_puncture_request(self):
         #(private_address_to_puncture,public_address_to_puncture)--->self.packet
@@ -134,8 +175,8 @@ class Message:
         container.extend(data)
         packet = "".join(container)
         #since it uses NoAuthentication, the signiture is ""
-        signiture =""
-        self.packet = packet+signiture
+        signature =""
+        self.packet = packet+signature
 
     def encode_puncture(self):
         #(source_private_address,source_public_address)--->self.packet
@@ -156,8 +197,8 @@ class Message:
         container.append(now)
         container.extend(data)
         packet = "".join(container)
-        signiture = self.crypto.create_signature(self.my_key, packet)
-        self.packet = packet + signiture
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
 
     def encode_identity(self):
         #()--->self.packet
@@ -174,8 +215,82 @@ class Message:
         data=()
         container.extend(data)
         packet = "".join(container)
-        signiture = self.crypto.create_signature(self.my_key, packet)
-        self.packet = packet+signiture
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet+signature
+
+    def encode_crawl_request(self):
+        #the payload of crawl_request is a sequence_number S
+        #the receiver will send its blocks whose sequence_number is greater than S
+        data = pack("i", self.requested_sequence_number)
+        container = [self.start_header,chr(2)]
+        container.append(self.my_identity)
+        now = self.encoder_and_decoder_global_time.pack(self.global_time)
+        container.append(now)
+        container.extend(data)
+        packet = "".join(container)
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
+
+
+    def encode_crawl_response(self):
+        """
+        the payload(content) of this message is a block
+        a block is represented as a tuple (up, down,
+                total_up_requester, total_down_requester,
+                sequence_number_requester, previous_hash_requester,
+                total_up_responder, total_down_responder,
+                sequence_number_responder, previous_hash_responder,
+                public_key_requester, signature_requester,
+                public_key_responder, signature_responder)
+        """
+        block_encoded = pack(crawl_response_format, *(self.block.up, self.block.down,
+                                         self.block.total_up_requester, self.block.total_down_requester,
+                                         self.block.sequence_number_requester, self.block.previous_hash_requester,
+                                         self.block.total_up_responder, self.block.total_down_responder,
+                                         self.block.sequence_number_responder, self.block.previous_hash_responder,
+                                         self.block.public_key_requester, self.block.signature_requester,
+                                         self.block.public_key_responder, self.block.signature_responder))
+
+        container = [self.start_header,chr(3)]
+        container.append(self.my_identity)
+        now = self.encoder_and_decoder_global_time.pack(self.global_time)
+        container.append(now)
+        container.extend(self.packet)
+        packet = "".join(container)
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
+
+    def encode_crawl_resume(self):
+        #the payload(content) of crawl-resume is nothing
+        #the only thing we want to inform the receiver is:
+        #this is a crawl-resume, and the identity of the sender is xxxxxxx(i.e. me)
+        data=()
+        container = [self.start_header,chr(3)]
+        container.append(self.my_identity)
+        now = self.encoder_and_decoder_global_time.pack(self.global_time)
+        container.append(now)
+        container.extend(self.packet)
+        packet = "".join(container)
+        signature = self.crypto.create_signature(self.my_key, packet)
+        self.packet = packet + signature
+        
+    def encode_missing_identity(self):
+        #the payload(content) of this message is a identity whose public key we don't know yet
+        #we expect the receiver can tell us which public key owns this identity
+        #(identity refers to the sha1 digest of a public key)
+        assert self.the_missing_identity !=None
+        assert self.global_time!=None
+        assert self.start_header != None
+        data = self.the_missing_identity
+        container = [self.start_header, chr(247)]
+        now = self.encoder_and_decoder_global_time.pack(self.global_time)
+        container.append(now)
+        container.extend(data)
+        packet = "".join(container)
+        #since it uses NoAuthentication, the signiture is ""
+        signature =""
+        self.packet = packet+signature
+
 
     def decode_introduction_request(self):
         #self.packet --->self.(global_time,destination_address,source_private_address,source_public_address,advice_map,signature,header)
@@ -184,6 +299,7 @@ class Message:
             print("insufficient packet length")
         #MemberAuthentication uses sha1
         member_id = self.packet[offset:offset + 20]
+        self.sender_identity=member_id
 
         #uses directDistribution
         self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
@@ -213,6 +329,7 @@ class Message:
         offset = 23
         #introduction request use MemberAuthentication
         member_id = self.packet[offset:offset + 20]
+        self.sender_identity=member_id
 
         self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
         print("global time is:" + str(self.global_time))
@@ -284,3 +401,47 @@ class Message:
         #it uses directDitribution, we need to take out the global time
         self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet,offset)
         print("the global time is: "+str(self.global_time))
+
+    def decode_identity(self):
+        offset = 23
+        key_length, = self.encoder_and_decoder_2Bytes.unpack_from(self.packet, offset)
+        self.key_received = self.packet[offset+2:offset+2 + key_length]
+        global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+2+key_length)
+        print("global time is:" + str(global_time))
+        self.global_time = global_time
+
+
+    def decode_crawl_request(self):
+        offset = 23
+        #MemberAuthentication uses sha1
+        member_id = self.packet[offset:offset + 20]
+        self.sender_identity = member_id
+        #uses directDistribution
+        self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
+        print("global time is:" + str(self.global_time))
+        self.requested_sequence_number = unpack_from("i", self.packet, offset+28)
+
+
+
+    def decode_crawl_response(self):
+        offset = 23
+        #offset = placeholder.offset
+        #MemberAuthentication uses sha1
+        member_id = self.packet[offset:offset + 20]
+        self.sender_identity = member_id
+        #uses directDistribution
+        self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
+        print("global time is:" + str(self.global_time))
+        block = Block()
+        block_encoded = unpack_from(crawl_response_format, self.packet, offset+28)
+        block.from_payload(block_encoded)
+        self.block = block
+
+    def decode_crawl_resume(self):
+        offset = 23
+        #MemberAuthentication uses sha1
+        member_id = self.packet[offset:offset + 20]
+        self.sender_identity = member_id
+        #uses directDistribution
+        self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
+        print("global time is:" + str(self.global_time))
