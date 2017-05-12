@@ -4,7 +4,7 @@ import logging
 import socket
 from hashlib import sha1
 from random import random
-from crypto import ECCrypto
+from crypto import ECCrypto,M2CryptoPK,M2CryptoSK,LibNaCLSK
 from struct import unpack_from
 from socket import inet_ntoa, inet_aton
 from Neighbor import Neighbor
@@ -32,11 +32,14 @@ class NeighborDiscover(DatagramProtocol):
     #visit_a_neighbor() will send a introduction request to a random neighbor
     #when an UDP packet received, the datagramReceived() will be called, which will call a message handling function according to message_type_id
 
-    def __init__(self,port = 25000,is_tracker=False):
+    def __init__(self,port = 25000,is_tracker=False,step_limit=None):
         self.is_tracker=is_tracker
         #get the network interface which connected to public Internet, (8.8.8.8,8) is the root DNS server
         #so that the network interface connected to it is guranteed to be connected to public Internet
         #private_ip means LAN ip, public_ip means WAN ip
+        #limited the amount of steps
+        self.step_count = 0
+        self.step_limit = step_limit
         self.private_ip = util.get_private_IP(("8.8.8.8",8))
         self.private_port = port
         self.private_address = (self.private_ip,self.private_port)
@@ -55,6 +58,8 @@ class NeighborDiscover(DatagramProtocol):
                      "221417684093f63c33a8ff656331898e4bc853bcfaac49bc0b2a99028195b7c7dca0aea65"
         self.master_key_hex = self.master_key.decode("HEX")
         self.crypto = ECCrypto()
+
+
         self.ec = self.crypto.generate_key(u"medium")
         self.key = self.crypto.key_from_public_bin(self.master_key_hex)
         self.master_identity = self.crypto.key_to_hash(self.key.pub())
@@ -62,7 +67,14 @@ class NeighborDiscover(DatagramProtocol):
         self.community_version = "\x01"
         #abandom name "prefix", use "header" to replace
         self.start_header = self.dispersy_version+self.community_version+self.master_identity
-        self.my_key = self.crypto.generate_key(u"medium")
+
+        if os.path.isfile('ec_multichain.pem'):
+            print("key already exists, loading")
+            with open("ec_multichain.pem", 'rb') as keyfile:
+                binarykey = keyfile.read()
+                self.my_key = LibNaCLSK(binarykey=binarykey)
+        else:
+            self.my_key = self.crypto.generate_key(u"medium")
         self.my_identity = self.crypto.key_to_hash(self.my_key.pub())
         self.my_public_key = self.crypto.key_to_bin(self.my_key.pub())
         self.reactor = reactor
@@ -92,6 +104,13 @@ class NeighborDiscover(DatagramProtocol):
         #send the introduction request
         self.transport.write(message_introduction_request.packet,neighbor_to_walk_ADDR)
         logger.info("take step to: "+str(neighbor_to_walk_ADDR))
+
+        if self.step_limit:
+            self.step_count = self.step_count + 1
+            if self.step_count> self.step_limit:
+                print("already reach step_limit, stopping")
+                self.reactor.stop()
+
 
 
     def datagramReceived(self, data, addr):
@@ -320,5 +339,5 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=10)
     neighbor_discovery.run()
