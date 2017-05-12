@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 class DispersyCrypto(object):
 
-
     @property
     def security_levels(self):
         """
@@ -86,7 +85,6 @@ class DispersyCrypto(object):
         "Create a signature using this key for this string."
         raise NotImplementedError()
 
-
     def get_signature_length(self, key):
         "Get the length of a signature created using this key in bytes."
         raise NotImplementedError()
@@ -105,9 +103,9 @@ class ECCrypto(DispersyCrypto):
         @author: Niels Zeilemaker
     """
 
-    #def _progress(self, *args):
-        #"Called when no feedback needs to be given."
-        #pass
+    def _progress(self, *args):
+        "Called when no feedback needs to be given."
+        pass
 
     @property
     def security_levels(self):
@@ -138,9 +136,11 @@ class ECCrypto(DispersyCrypto):
         assert security_level in _CURVES
 
         curve = _CURVES[security_level]
+        if curve[1] == "M2Crypto":
+            return M2CryptoSK(curve[0])
 
-        return M2CryptoSK(curve[0])
-
+        if curve[1] == "libnacl":
+            return LibNaCLSK()
 
     def key_to_bin(self, ec):
         "Convert the key to a binary format."
@@ -152,11 +152,42 @@ class ECCrypto(DispersyCrypto):
         assert isinstance(ec, DispersyKey), ec
         return ec.key_to_hash()
 
+
+    def is_valid_private_bin(self, string):
+        "Returns True if the input is a valid public/private keypair stored in a binary format"
+        try:
+            self.key_from_private_bin(string)
+        except:
+            return False
+        return True
+
+
+    def is_valid_public_bin(self, string):
+        "Returns True if the input is a valid public key"
+        try:
+            self.key_from_public_bin(string)
+        except:
+            return False
+        return True
+
+    def key_from_private_bin(self, string):
+        "Get the EC from a public/private keypair stored in a binary format."
+        if string.startswith("LibNaCLSK:"):
+            return LibNaCLSK(string[10:])
+        return M2CryptoSK(keystring=string)
+
     def key_from_public_bin(self, string):
         "Get the EC from a public key in binary format."
-        #if string.startswith("LibNaCLPK:"):
-            #return LibNaCLPK(string[10:])
+        if string.startswith("LibNaCLPK:"):
+            return LibNaCLPK(string[10:])
         return M2CryptoPK(keystring=string)
+
+    def get_signature_length(self, ec):
+        """
+        Returns the length, in bytes, of each signature made using EC.
+        """
+        assert isinstance(ec, DispersyKey), ec
+        return ec.get_signature_length()
 
     def create_signature(self, ec, data):
         """
@@ -166,6 +197,37 @@ class ECCrypto(DispersyCrypto):
         assert isinstance(data, str), type(data)
         return ec.signature(data)
 
+    def is_valid_signature(self, ec, data, signature):
+        """
+        Returns True when SIGNATURE matches the DIGEST made using EC.
+        """
+        assert isinstance(ec, DispersyKey), ec
+        assert isinstance(data, str), type(data)
+        assert isinstance(signature, str), type(signature)
+        assert len(signature) == self.get_signature_length(ec), [len(signature), self.get_signature_length(ec)]
+
+        try:
+            return ec.verify(signature, data)
+        except:
+            return False
+
+class NoVerifyCrypto(ECCrypto):
+    """
+    A crypto object which assumes all signatures are valid.  Usefull to reduce CPU overhead.
+
+    """
+    def is_valid_signature(self, ec, digest, signature):
+        return True
+
+
+class NoCrypto(NoVerifyCrypto):
+    """
+    A crypto object which does not create a valid signatures, and assumes all signatures are valid.
+    Usefull to reduce CPU overhead.
+    """
+
+    def create_signature(self, ec, digest):
+        return "0" * self.get_signature_length(ec)
 
 
 class DispersyKey(object):
@@ -178,7 +240,6 @@ class DispersyKey(object):
 
     def key_to_bin(self):
         raise NotImplementedError()
-
 
     def key_to_hash(self):
         if self.has_secret_key():
@@ -224,6 +285,42 @@ class M2CryptoPK(DispersyKey):
     def key_to_bin(self):
         return self.pem_to_bin(self.key_to_pem())
 
+    def get_signature_length(self):
+        return int(ceil(len(self.ec) / 8.0)) * 2
+
+
+    def verify(self, signature, data):
+        length = len(signature) / 2
+        r = signature[:length]
+        # remove all "\x00" prefixes
+        while r and r[0] == "\x00":
+            r = r[1:]
+        # prepend "\x00" when the most significant bit is set
+        if ord(r[0]) & 128:
+            r = "\x00" + r
+
+        s = signature[length:]
+        # remove all "\x00" prefixes
+        while s and s[0] == "\x00":
+            s = s[1:]
+        # prepend "\x00" when the most significant bit is set
+        if ord(s[0]) & 128:
+            s = "\x00" + s
+
+        mpi_r = _STRUCT_L.pack(len(r)) + r
+        mpi_s = _STRUCT_L.pack(len(s)) + s
+
+        # mpi_r3 = bn_to_mpi(bin_to_bn(signature[:length]))
+        # mpi_s3 = bn_to_mpi(bin_to_bn(signature[length:]))
+
+        # if not mpi_r == mpi_r3:
+        #     raise RuntimeError([mpi_r.encode("HEX"), mpi_r3.encode("HEX")])
+        # if not mpi_s == mpi_s3:
+        #     raise RuntimeError([mpi_s.encode("HEX"), mpi_s3.encode("HEX")])
+
+        digest = sha1(data).digest()
+        return bool(self.ec.verify_dsa(digest, mpi_r, mpi_s))
+
 
 class M2CryptoSK(M2CryptoPK):
 
@@ -232,11 +329,35 @@ class M2CryptoSK(M2CryptoPK):
             self.ec = EC.gen_params(curve)
             self.ec.gen_key()
 
+        elif keystring:
+            self.ec = self.key_from_pem("-----BEGIN EC PRIVATE KEY-----\n%s-----END EC PRIVATE KEY-----\n" % keystring.encode("BASE64"))
+
+        elif filename:
+            # this workaround is needed to run Tribler on Windows 64 bit
+            membuf = BIO.MemoryBuffer(open(filename, 'rb').read())
+            self.ec = EC.load_key_bio(membuf)
+            membuf.close()
+
     def pub(self):
         return M2CryptoPK(ec_pub=self.ec.pub())
 
-    #def has_secret_key(self):
-        #return True
+    def has_secret_key(self):
+        return True
+
+
+    def key_to_pem(self):
+        "Convert a key to the PEM format."
+        bio = BIO.MemoryBuffer()
+        self.ec.save_key_bio(bio, None, lambda *args: "")
+        return bio.read_all()
+
+
+    def key_from_pem(self, pem):
+        "Get the EC from a public/private keypair stored in the PEM."
+        def get_password(*args):
+            return ""
+        return EC.load_key_bio(BIO.MemoryBuffer(pem), get_password)
+
 
     def signature(self, msg):
         length = int(ceil(len(self.ec) / 8.0))
@@ -250,3 +371,68 @@ class M2CryptoSK(M2CryptoPK):
 
         return "".join(("\x00" * (length - len(r)), r, "\x00" * (length - len(s)), s))
 
+    def create_signature(self,msg):
+        length = int(ceil(len(self.ec) / 8.0))
+        digest = sha1(msg).digest()
+
+        mpi_r, mpi_s = self.ec.sign_dsa(digest)
+        length_r, = _STRUCT_L.unpack_from(mpi_r)
+        r = mpi_r[-min(length, length_r):]
+        length_s, = _STRUCT_L.unpack_from(mpi_s)
+        s = mpi_s[-min(length, length_s):]
+
+        return "".join(("\x00" * (length - len(r)), r, "\x00" * (length - len(s)), s))
+
+
+class LibNaCLPK(DispersyKey):
+
+    def __init__(self, binarykey="", pk=None, hex_vk=None):
+        if binarykey:
+            pk, vk = binarykey[:libnacl.crypto_box_SECRETKEYBYTES], binarykey[libnacl.crypto_box_SECRETKEYBYTES: libnacl.crypto_box_SECRETKEYBYTES + libnacl.crypto_sign_SEEDBYTES]
+            hex_vk = hex_encode(vk)
+
+        self.key = libnacl.public.PublicKey(pk)
+        self.veri = libnacl.sign.Verifier(hex_vk)
+
+    def pub(self):
+        return self
+
+    def has_secret_key(self):
+        return False
+
+
+    def verify(self, signature, msg):
+        return self.veri.verify(signature + msg)
+
+    def key_to_bin(self):
+        return "LibNaCLPK:" + self.key.pk + self.veri.vk
+
+    def get_signature_length(self):
+        return libnacl.crypto_sign_BYTES
+
+
+class LibNaCLSK(LibNaCLPK):
+
+    def __init__(self, binarykey=""):
+        if binarykey:
+            crypt, seed = binarykey[:libnacl.crypto_box_SECRETKEYBYTES], binarykey[libnacl.crypto_box_SECRETKEYBYTES : libnacl.crypto_box_SECRETKEYBYTES + libnacl.crypto_sign_SEEDBYTES]
+            self.key = libnacl.dual.DualSecret(crypt, seed)
+        else:
+            self.key = libnacl.dual.DualSecret()
+        self.veri = libnacl.sign.Verifier(self.key.hex_vk())
+
+    def pub(self):
+        return LibNaCLPK(pk=self.key.pk, hex_vk=self.veri.hex_vk())
+
+    def has_secret_key(self):
+        return True
+
+
+    def signature(self, msg):
+        return self.key.signature(msg)
+
+    def create_signature(self,msg):
+        return self.key.signature(msg)
+
+    def key_to_bin(self):
+        return "LibNaCLSK:" + self.key.sk + self.key.seed
