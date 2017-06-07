@@ -12,17 +12,16 @@ def get_private_IP(addr):
     s.close()
     return sock_IP
 
+"""
 @staticmethod
 def _get_interface_addresses():
-    """
-        Yields Interface instances for each available AF_INET interface found.
+        #Yields Interface instances for each available AF_INET interface found.
 
-        An Interface instance has the following properties:
-        - name          (i.e. "eth0")
-        - address       (i.e. "10.148.3.254")
-        - netmask       (i.e. "255.255.255.0")
-        - broadcast     (i.e. "10.148.3.255")
-        """
+        #An Interface instance has the following properties:
+        #- name          (i.e. "eth0")
+        #- address       (i.e. "10.148.3.254")
+        #- netmask       (i.e. "255.255.255.0")
+        #- broadcast     (i.e. "10.148.3.255")
     class Interface(object):
 
         def __init__(self, name, address, netmask, broadcast):
@@ -66,3 +65,5 @@ def _get_interface_addresses():
         #logger = logging.getLogger("dispersy")
         #logger.warning("failed to check network interfaces, error was: %r", e)
         print ("OSError")
+
+"""
