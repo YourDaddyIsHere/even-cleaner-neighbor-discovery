@@ -1,7 +1,7 @@
 from hashlib import sha256
 from struct import pack_into, unpack_from, calcsize
 
-from Tribler.dispersy.crypto import ECCrypto
+#from crypto import ECCrypto
 import networkx as nx
 import matplotlib.pyplot as plt
 #import formats
