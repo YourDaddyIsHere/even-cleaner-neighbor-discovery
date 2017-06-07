@@ -213,6 +213,17 @@ class HalfBlockDatabase:
         db_result = cursor.fetchone()[0]
         print("the latest sequence number is:"+str(db_result))
         return db_result if db_result is not None else 0
+
+    def get_blocks_by_public_key(self,public_key):
+        script_get_blocks = u"""
+                            SELECT * from multi_chain WHERE public_key=? 
+                            """
+        cursor = self.conn.cursor()
+        cursor.execute(script_get_blocks,(buffer(public_key),))
+        self.conn.commit()
+        results = cursor.fetchall()
+        return results
+
     def get_all_blocks(self):
         script_get_all =u"""
                          SELECT * from multi_chain
