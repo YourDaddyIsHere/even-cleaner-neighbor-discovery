@@ -11,14 +11,15 @@ class Neighbor:
 	last_outgoing_time = 0 
 	last_incoming_time = 0
 	last_intro_time = 0
-	def __init__(self,private_ip,public_ip,netmask="255.255.255.0",identity=None,public_key=None):
-		assert isinstance(private_ip,tuple)
+	def __init__(self,private_address,public_address,netmask="255.255.255.0",identity=None,public_key=None):
+		assert isinstance(private_address,tuple)
 		assert isinstance(netmask,str)
-		self.private_address = private_ip
-		self.public_address = public_ip
+		self.private_address = private_address
+		self.public_address = public_address
 		self.last_outgoing_time = time.time()
 		self.last_incoming_time = time.time()
 		self.last_intro_time = time.time()
+		self.last_trusted_time = time.time()
 		self.NETMASK = netmask
 		self.identity = identity
 		self.public_key = public_key

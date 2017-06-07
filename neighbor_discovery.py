@@ -4,7 +4,7 @@ import logging
 import socket
 from hashlib import sha1
 from random import random
-from crypto import ECCrypto,M2CryptoPK,M2CryptoSK,LibNaCLSK
+from crypto import ECCrypto,LibNaCLSK
 from struct import unpack_from
 from socket import inet_ntoa, inet_aton
 from Neighbor import Neighbor
@@ -13,7 +13,8 @@ from twisted.internet import task
 from twisted.internet import reactor
 from struct import pack, unpack_from, Struct
 from Message import Message
-from database import Trusted_Walker_Database
+#from database import Trusted_Walker_Database
+from HalfBlockDatabase import HalfBlockDatabase,HalfBlock
 import threading
 import util
 logging.basicConfig(level=logging.DEBUG, filename="logfile", filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
@@ -52,10 +53,16 @@ class NeighborDiscover(DatagramProtocol):
         self.neighbor_group =NeighborGroup()
         self.global_time=1
         #hard coded master_key for multichain community
+        """
         self.master_key = "3081a7301006072a8648ce3d020106052b81040027038192000407afa96c83660dccfbf02a45b68f4bc" + \
                      "4957539860a3fe1ad4a18ccbfc2a60af1174e1f5395a7917285d09ab67c3d80c56caf5396fc5b231d84ceac23627" + \
                      "930b4c35cbfce63a49805030dabbe9b5302a966b80eefd7003a0567c65ccec5ecde46520cfe1875b1187d469823d" + \
                      "221417684093f63c33a8ff656331898e4bc853bcfaac49bc0b2a99028195b7c7dca0aea65"
+        """
+        self.master_key = "3081a7301006072a8648ce3d020106052b8104002703819200040503dac58c19267f12cb0cf667e480816cd2574acae" \
+                     "5293b59d7c3da32e02b4747f7e2e9e9c880d2e5e2ba8b7fcc9892cb39b797ef98483ffd58739ed20990f8e3df7d1ec5" \
+                     "a7ad2c0338dc206c4383a943e3e2c682ac4b585880929a947ffd50057b575fc30ec88eada3ce6484e5e4d6fdf41984c" \
+                     "d1e51aaacc5f9a51bcc8393aea1f786fc47cbf994cb1339f706df4a"
         self.master_key_hex = self.master_key.decode("HEX")
         self.crypto = ECCrypto()
 
@@ -79,21 +86,27 @@ class NeighborDiscover(DatagramProtocol):
         self.my_public_key = self.crypto.key_to_bin(self.my_key.pub())
         self.reactor = reactor
         self.listening_port=self.reactor.listenUDP(self.private_port, self)
-        self.database = Trusted_Walker_Database()
+        #self.database = Trusted_Walker_Database()
+        self.database = HalfBlockDatabase(my_public_key=self.my_public_key)
 
     def startProtocol(self):
         print("neighbor discovery module started")
         #every 5 seconds, we take a step (visit a known neighbor)
         if(self.is_tracker==False):
             loop = task.LoopingCall(self.visit_a_neighbor)
-            loop.start(5.0)
+            loop.start(3.0)
 
     def stopProtocol(self):
         self.database.close()
+        #self.database.trust_graph.draw_graph()
+        print("the trusted list is now:")
+        for neighbor in self.neighbor_group.trusted_neighbors:
+            print (neighbor.get_private_address())
 
     #take one step,visit a known neighbor (candidate)
     def visit_a_neighbor(self):
-        #NeighborGroup return a neighbor to walke
+        #NeighborGroup return a neighbor to walk
+        #self.neighbor_group.insert_trusted_neighbor(my_public_key=my_public_key,Graph=self.database.TrustGraph)
         neighbor_to_walk = self.neighbor_group.get_neighbor_to_walk()
         neighbor_to_walk_ADDR = neighbor_to_walk.get_public_address()
         #create new Message and specify its  parameter, make it a Introduction Request
@@ -145,14 +158,18 @@ class NeighborDiscover(DatagramProtocol):
         if message_type == 248:
             print("here is an dispersy-identity")
             self.on_identity(packet,addr)
-        if message_type == 2:
-            print("here is a crawl_request")
-        if message_type == 3:
-            print("here is a crawl_response")
-            self.on_crawl_response(packet,addr)
-        if message_type == 4:
-            print("here is a crawl_resume.............................................................:D")
-            self.on_crawl_resume(packet,addr)
+        if message_type == 1:
+            print ("here is a halfblock message")
+            self.on_halfblock(packet,addr)
+        #if message_type == 2:
+            #print("here is a crawl_request")
+            #self.on_crawl_request(packet,addr)
+        #if message_type == 3:
+            #print("here is a crawl_response")
+            #self.on_crawl_response(packet,addr)
+        #if message_type == 4:
+            #print("here is a crawl_resume.............................................................:D")
+            #self.on_crawl_resume(packet,addr)
 
     def on_introduction_request(self,packet,addr):
         """
@@ -214,11 +231,15 @@ class NeighborDiscover(DatagramProtocol):
         identity = message.sender_identity
         member = self.database.get_member(identity = identity)
         if member is not None:
+            print("the member of the introduction response is: "+str(member[0]))
             public_key = member[1]
             requested_sequence_number = self.database.get_latest_sequence_number(public_key=public_key) +1
-            message_crawl_request = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
-            message_crawl_request.encode_crawl_request()
-            self.transport.write(message_crawl_request.packet,addr)
+            #message_crawl_request = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
+            #message_crawl_request.encode_crawl_request()
+            message_crawl = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
+            message_crawl.encode_crawl()
+            self.transport.write(message_crawl.packet,addr)
+            print("crawl sent")
 
     def on_puncture_request(self,packet,addr):
         """
@@ -258,6 +279,7 @@ class NeighborDiscover(DatagramProtocol):
         if(self.database.get_member(public_key=message_identity.key_received)==None):
             self.database.add_member(identity=sender_identity,public_key=message_identity.key_received)
         self.neighbor_group.associate_neigbhor_with_public_key(public_ip=addr,identity=sender_identity,public_key = message_identity.key_received)
+        self.neighbor_group.insert_trusted_neighbor(Graph=self.database.trust_graph,my_public_key=self.my_public_key)
 
 
 
@@ -275,6 +297,18 @@ class NeighborDiscover(DatagramProtocol):
         #if a block is already in database, the database will returns a PRIMARY KEY constraint error. It does no harm to us
         self.database.add_block(block)
 
+    def on_halfblock(self,packet,addr):
+        message_crawl_response = Message(packet=packet)
+        message_crawl_response.decode_halfblock()
+        block = message_crawl_response.block
+        #block.show()
+        #it is possible that some guys send us a send block twice due to network latency
+        #but we add a block to the database without checking whether it is already in the database
+        #it is time consuming to check it using SELECT ... WHERE has_requester =? 
+        #if a block is already in database, the database will returns a PRIMARY KEY constraint error. It does no harm to us
+        self.database.add_block(block)
+
+    """
     def on_crawl_resume(self,packet,addr):
         message_resume = Message(packet=packet)
         message_resume.decode_crawl_resume()
@@ -288,6 +322,7 @@ class NeighborDiscover(DatagramProtocol):
         message_crawl_request = Message(neighbor_discovery=self,requested_sequence_number=latest_sequence_number+1)
         message_crawl_request.encode_crawl_request()
         self.transport.write(message_crawl_request.packet,addr)
+    """
 
     def public_address_vote(self,address,neighbor_addr):
         """
@@ -339,5 +374,5 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=30)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=1000)
     neighbor_discovery.run()
