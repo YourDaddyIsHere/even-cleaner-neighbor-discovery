@@ -32,6 +32,8 @@ EMPTY_PK = '0'*PK_LENGTH
 block_pack_format = "! Q Q Q Q {0}s I {0}s I {1}s {2}s".format(PK_LENGTH, HASH_LENGTH, SIG_LENGTH)
 block_pack_size = calcsize(block_pack_format)
 
+#unlike old full-block, this is a halfblock
+#HalfBlock contains functions which help you easily convert between Block and Database record
 class HalfBlock:
     def __init__(self,database_record=None):
         #create an empty half block instance
@@ -109,7 +111,8 @@ class HalfBlock:
 
 
 
-
+#a work around with sqlite3 database management tools
+#contains functions that help you store/retrieve blocks and Tribler members from database
 class HalfBlockDatabase:
     def __init__(self,database_name='BlockDataBase.db',my_public_key=None):
         self.conn = sqlite3.connect(database_name)
@@ -154,7 +157,7 @@ class HalfBlockDatabase:
     def add_block(self, block):
         """
         Persist a block
-        :param block: The data that will be saved.
+        :param block: The HalfBlock instance that will be saved.
         """
         cursor = self.conn.cursor()
         #only store this block when we not yet have it in database
@@ -279,6 +282,7 @@ class TrustGraph():
 
     def add_block(self,block):
         #when we use old block protocol
+        #should we still support old protocol?
         """
         if self.is_halfblock == False:
         
@@ -302,6 +306,7 @@ class TrustGraph():
                 if not block.public_key_responder in self.nodes_list:
                     self.nodes_list.append(block.public_key_responder)
         """
+        #when we want to store a Half Block
         if self.is_halfblock == True:
             if self.Graph.has_edge(block.public_key,block.link_public_key):
                self.Graph[block.public_key][block.link_public_key]["weight"] = self.Graph[block.public_key][block.link_public_key]["weight"] + block.up
@@ -325,13 +330,19 @@ class TrustGraph():
 
 
     def has_trust_path(self,your_node,node_to_be_trusted):
-        #A trust B if and only if there is a directed path from B to A
+        """
+        A trust B if and only if there is a directed path from B to A
+        :param your_node:the public key of yours
+        :param node_to_be_trusted: the public key that you want to check "do I have trust path with him"
+        """
         if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node):
             return True
         else:
             return False
 
+
     def draw_graph(self):
+        #draw a trust graph using matplotlib
         pos = nx.shell_layout(self.Graph)
 
         nx.draw_networkx_nodes(self.Graph,pos,

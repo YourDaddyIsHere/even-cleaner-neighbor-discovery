@@ -98,7 +98,7 @@ class NeighborDiscover(DatagramProtocol):
 
     def stopProtocol(self):
         self.database.close()
-        #self.database.trust_graph.draw_graph()
+        self.database.trust_graph.draw_graph()
         print("the trusted list is now:")
         for neighbor in self.neighbor_group.trusted_neighbors:
             print (neighbor.get_private_address())
@@ -273,6 +273,12 @@ class NeighborDiscover(DatagramProtocol):
         self.transport.write(message_identity.packet,addr)
 
     def on_identity(self,packet,addr):
+        """
+        1.decode a dispersy-identity message
+        2.store the public key in the message to our database
+        3.associate this key with the candidate
+        4.move this candidate to trusted neigbhors list
+        """
         message_identity=Message(packet=packet)
         message_identity.decode_identity()
         sender_identity = sha1(message_identity.key_received).digest()
@@ -287,6 +293,9 @@ class NeighborDiscover(DatagramProtocol):
         pass
 
     def on_crawl_response(self,packet,addr):
+        """
+        it is a message in old protocol, should we still support old protocol?
+        """
         message_crawl_response = Message(packet=packet)
         message_crawl_response.decode_crawl_response()
         block = message_crawl_response.block
@@ -298,6 +307,9 @@ class NeighborDiscover(DatagramProtocol):
         self.database.add_block(block)
 
     def on_halfblock(self,packet,addr):
+        """
+        decode a halfblock message, store the block inside to our database
+        """
         message_crawl_response = Message(packet=packet)
         message_crawl_response.decode_halfblock()
         block = message_crawl_response.block
@@ -374,5 +386,5 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=1000)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=10)
     neighbor_discovery.run()
