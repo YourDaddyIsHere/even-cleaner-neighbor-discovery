@@ -98,7 +98,7 @@ class NeighborDiscover(DatagramProtocol):
 
     def stopProtocol(self):
         self.database.close()
-        #self.database.trust_graph.draw_graph()
+        self.database.trust_graph.draw_graph()
         print("the trusted list is now:")
         for neighbor in self.neighbor_group.trusted_neighbors:
             print (neighbor.get_private_address())
