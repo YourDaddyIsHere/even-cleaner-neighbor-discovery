@@ -453,22 +453,23 @@ class TrustGraph():
                     if node1 !=node2 and self.Graph.has_edge(node1,node2):
                         self.trusted_edge.append((node1,node2))
 
-
+            """
             nx.draw_networkx_nodes(self.Graph,pos,
                            nodelist=self.trusted_node,
                            node_color='g',
                            node_size=20,
                            alpha=0.8)
-            """
+            
             nx.draw_networkx_nodes(self.Graph,pos,
                            nodelist=[self.my_node],
                            node_color='b',
                            node_size=20,
                            alpha=0.8)
-            """
+            
 
             nx.draw_networkx_edges(self.Graph,pos,
                            edgelist=self.trusted_edge,
                            width=1,alpha=0.2,edge_color='g')
+            """
 
         #plt.show()
