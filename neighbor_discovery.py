@@ -125,6 +125,7 @@ class NeighborDiscover(DatagramProtocol):
             self.step_count = self.step_count + 1
             if self.step_count> self.step_limit:
                 print("already reach step_limit, stopping")
+                self.listening_port.stopListening()
                 self.reactor.stop()
 
 
@@ -396,5 +397,6 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=100)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=4)
     neighbor_discovery.run()
+    print("run finish")
