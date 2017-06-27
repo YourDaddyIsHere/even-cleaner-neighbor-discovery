@@ -17,10 +17,13 @@ from Message import Message
 from HalfBlockDatabase import HalfBlockDatabase,HalfBlock
 import threading
 import util
-logging.basicConfig(level=logging.DEBUG, filename="logfile", filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
+logging.basicConfig(level=logging.DEBUG, filename=os.path.join(BASE, 'logfile'), filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-import os
+
+
 import sys
 if sys.platform == "darwin":
     import pysqlite2.dbapi2 as sqlite3
@@ -33,7 +36,7 @@ class NeighborDiscover(DatagramProtocol):
     #visit_a_neighbor() will send a introduction request to a random neighbor
     #when an UDP packet received, the datagramReceived() will be called, which will call a message handling function according to message_type_id
 
-    def __init__(self,port = 25000,is_tracker=False,step_limit=None):
+    def __init__(self,port = 25000,is_tracker=False,step_limit=None,neighbor_group=NeighborGroup()):
         self.is_tracker=is_tracker
         #get the network interface which connected to public Internet, (8.8.8.8,8) is the root DNS server
         #so that the network interface connected to it is guranteed to be connected to public Internet
@@ -50,7 +53,7 @@ class NeighborDiscover(DatagramProtocol):
         self.public_address = ("0.0.0.0",0)
         self.PUBLIC_ADDRESS_VOTE = dict()
         #NeighborGroup is the module to store, manage, clean the neighbor we discovered
-        self.neighbor_group =NeighborGroup()
+        self.neighbor_group =neighbor_group
         self.global_time=1
         #hard coded master_key for multichain community
         """
@@ -75,9 +78,9 @@ class NeighborDiscover(DatagramProtocol):
         #abandom name "prefix", use "header" to replace
         self.start_header = self.dispersy_version+self.community_version+self.master_identity
 
-        if os.path.isfile('ec_multichain.pem'):
+        if os.path.isfile(os.path.join(BASE, 'ec_multichain.pem')):
             print("key already exists, loading")
-            with open("ec_multichain.pem", 'rb') as keyfile:
+            with open(os.path.join(BASE, 'ec_multichain.pem'), 'rb') as keyfile:
                 binarykey = keyfile.read()
                 self.my_key = LibNaCLSK(binarykey=binarykey)
         else:
@@ -90,11 +93,11 @@ class NeighborDiscover(DatagramProtocol):
         self.database = HalfBlockDatabase(my_public_key=self.my_public_key)
 
     def startProtocol(self):
-        print("neighbor discovery module started")
+        #print("neighbor discovery module started")
         #every 5 seconds, we take a step (visit a known neighbor)
         if(self.is_tracker==False):
             loop = task.LoopingCall(self.visit_a_neighbor)
-            loop.start(3.0)
+            loop.start(1.0)
 
     def stopProtocol(self):
         self.database.close()
@@ -224,11 +227,13 @@ class NeighborDiscover(DatagramProtocol):
             self.neighbor_group.add_neighbor_to_intro_list(introduced_neighbor)
             print("new candidate has been added to intro list")
         #send a missing identity by the way
-        message_missing_identity = Message(neighbor_discovery=self,the_missing_identity=message.sender_identity)
-        message_missing_identity.encode_missing_identity()
-        self.transport.write(message_missing_identity.packet,addr)
-
         identity = message.sender_identity
+        responder_member = self.database.get_member(identity = identity)
+        if responder_member is None:
+            message_missing_identity = Message(neighbor_discovery=self,the_missing_identity=message.sender_identity)
+            message_missing_identity.encode_missing_identity()
+            self.transport.write(message_missing_identity.packet,addr)
+
         member = self.database.get_member(identity = identity)
         if member is not None:
             print("the member of the introduction response is: "+str(member[0]))
@@ -284,6 +289,11 @@ class NeighborDiscover(DatagramProtocol):
         sender_identity = sha1(message_identity.key_received).digest()
         if(self.database.get_member(public_key=message_identity.key_received)==None):
             self.database.add_member(identity=sender_identity,public_key=message_identity.key_received)
+            self.database.add_visit_record(ip = addr[0],port = addr[1],public_key=message_identity.key_received)
+            #then send a crawl request
+            requested_sequence_number = self.database.get_latest_sequence_number(public_key=message_identity.key_received) +1
+            message_crawl = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
+            message_crawl.encode_crawl()
         self.neighbor_group.associate_neigbhor_with_public_key(public_ip=addr,identity=sender_identity,public_key = message_identity.key_received)
         self.neighbor_group.insert_trusted_neighbor(Graph=self.database.trust_graph,my_public_key=self.my_public_key)
 
