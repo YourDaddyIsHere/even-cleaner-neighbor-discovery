@@ -396,5 +396,5 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=10)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=100)
     neighbor_discovery.run()
