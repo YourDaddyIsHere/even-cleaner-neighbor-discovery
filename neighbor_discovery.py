@@ -18,6 +18,7 @@ from HalfBlockDatabase import HalfBlockDatabase,HalfBlock
 import threading
 import util
 import os
+import time
 BASE = os.path.dirname(os.path.abspath(__file__))
 logging.basicConfig(level=logging.DEBUG, filename=os.path.join(BASE, 'logfile'), filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ class NeighborDiscover(DatagramProtocol):
         #every 5 seconds, we take a step (visit a known neighbor)
         if(self.is_tracker==False):
             loop = task.LoopingCall(self.visit_a_neighbor)
-            loop.start(5.0)
+            loop.start(1.0)
 
     def stopProtocol(self):
         self.database.close()
@@ -126,6 +127,7 @@ class NeighborDiscover(DatagramProtocol):
             if self.step_count> self.step_limit:
                 print("already reach step_limit, stopping")
                 self.listening_port.stopListening()
+                time.sleep(10)
                 self.reactor.stop()
 
 
@@ -397,6 +399,6 @@ class NeighborDiscover(DatagramProtocol):
         self.reactor.run()
 
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=4)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=5)
     neighbor_discovery.run()
     print("run finish")
