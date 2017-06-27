@@ -2,9 +2,11 @@ import random
 import time
 from Neighbor import Neighbor
 import logging
+import os
+BASE = os.path.dirname(os.path.abspath(__file__))
 #import netaddr
 
-logging.basicConfig(level=logging.DEBUG, filename="logfile", filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+logging.basicConfig(level=logging.DEBUG, filename=os.path.join(BASE, 'logfile'), filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -206,7 +208,7 @@ class NeighborGroup:
 
 	def get_neighbor_to_introduce(self,neighbor):
 		self.clean_stale_neighbors()
-		neighbors_list = self.outgoing_neighbors+self.incoming_neighbors+self.trusted_neighbors
+		neighbors_list = self.tracker+self.outgoing_neighbors+self.incoming_neighbors+self.trusted_neighbors
 		if(len(neighbors_list)>0):
 			random.shuffle(neighbors_list)
 			for n in neighbors_list:
