@@ -37,12 +37,13 @@ class NeighborDiscover(DatagramProtocol):
     #visit_a_neighbor() will send a introduction request to a random neighbor
     #when an UDP packet received, the datagramReceived() will be called, which will call a message handling function according to message_type_id
 
-    def __init__(self,port = 25000,is_tracker=False,step_limit=None,neighbor_group=NeighborGroup()):
+    def __init__(self,port = 25000,is_tracker=False,step_limit=None,is_listening=True,message_sender=None,neighbor_group=NeighborGroup()):
         self.is_tracker=is_tracker
         #get the network interface which connected to public Internet, (8.8.8.8,8) is the root DNS server
         #so that the network interface connected to it is guranteed to be connected to public Internet
         #private_ip means LAN ip, public_ip means WAN ip
         #limited the amount of steps
+        self.message_sender = message_sender
         self.step_count = 0
         self.step_limit = step_limit
         self.private_ip = util.get_private_IP(("8.8.8.8",8))
@@ -56,6 +57,7 @@ class NeighborDiscover(DatagramProtocol):
         #NeighborGroup is the module to store, manage, clean the neighbor we discovered
         self.neighbor_group =neighbor_group
         self.global_time=1
+        self.is_listening=is_listening
         #hard coded master_key for multichain community
         """
         self.master_key = "3081a7301006072a8648ce3d020106052b81040027038192000407afa96c83660dccfbf02a45b68f4bc" + \
@@ -101,11 +103,12 @@ class NeighborDiscover(DatagramProtocol):
             loop.start(1.0)
 
     def stopProtocol(self):
+        #time.sleep(5)
         self.database.close()
         self.database.trust_graph.draw_graph()
         print("the trusted list is now:")
-        for neighbor in self.neighbor_group.trusted_neighbors:
-            print (neighbor.get_private_address())
+        #for neighbor in self.neighbor_group.trusted_neighbors:
+            #print (neighbor.get_private_address())
 
     #take one step,visit a known neighbor (candidate)
     def visit_a_neighbor(self):
@@ -119,7 +122,8 @@ class NeighborDiscover(DatagramProtocol):
         #encode the message to a introduction request, the binary string will be stored at attribute packet
         message_introduction_request.encode_introduction_request()
         #send the introduction request
-        self.transport.write(message_introduction_request.packet,neighbor_to_walk_ADDR)
+        #self.transport.write(message_introduction_request.packet,neighbor_to_walk_ADDR)
+        self.send_message(message_introduction_request.packet,neighbor_to_walk_ADDR)
         logger.info("take step to: "+str(neighbor_to_walk_ADDR))
 
         if self.step_limit:
@@ -131,6 +135,12 @@ class NeighborDiscover(DatagramProtocol):
                 self.reactor.stop()
 
 
+    def send_message(self,packet,addr):
+        if self.message_sender ==None:
+            self.transport.write(packet,addr)
+        else:
+            self.message_sender(packet,addr)
+
 
     def datagramReceived(self, data, addr):
         """
@@ -139,7 +149,8 @@ class NeighborDiscover(DatagramProtocol):
         """
         print("received data from" +str(addr))
         #now we receive a UDP datagram, call decode_message to decode it
-        self.handle_message(data,addr)
+        if self.is_listening:
+            self.handle_message(data,addr)
 
     def handle_message(self,packet,addr):
         #call different message handler according to its message_type
@@ -199,7 +210,7 @@ class NeighborDiscover(DatagramProtocol):
         else:
             introduced_private_address=("0.0.0.0",0)
             introduced_public_address=("0.0.0.0",0)
-        message_response = Message(neighbor_discovery=self,identifier=message_request.identifier,destination_address=addr,source_private_address =self.private_address,source_public_address=self.public_address,
+        message_response = Message(neighbor_discovery=self,identifier=message_request.identifier,destination_address=addr,source_private_address=self.private_address,source_public_address=self.public_address,
                                    private_introduction_address=introduced_private_address,public_introduction_address=introduced_public_address)
         message_response.encode_introduction_response()
         #now it is time to create puncture request
@@ -208,9 +219,14 @@ class NeighborDiscover(DatagramProtocol):
                                                private_address_to_puncture=message_request.source_private_address,public_address_to_puncture=addr)
             message_puncture_request.encode_puncture_request()
             #send one puncture request to private ip and one puncture request to public ip
-            self.transport.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
-            self.transport.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
-        self.transport.write(message_response.packet,addr)
+            #self.transport.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
+            self.send_message(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
+
+            #self.transport.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
+            self.send_message.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
+
+        #self.transport.write(message_response.packet,addr)
+        self.send_message(message_response.packet,addr)
 
     def on_introduction_response(self,packet,addr):
         """
@@ -228,6 +244,7 @@ class NeighborDiscover(DatagramProtocol):
         if message.private_introduction_address!=("0.0.0.0",0) and message.public_introduction_address!=("0.0.0.0",0):
             introduced_neighbor = Neighbor(message.private_introduction_address,message.public_introduction_address)
             self.neighbor_group.add_neighbor_to_intro_list(introduced_neighbor)
+            self.neighbor_group.update_current_neighbor(responder=message_sender,introduced_neighbor=introduced_neighbor)
             print("new candidate has been added to intro list")
         #send a missing identity by the way
         identity = message.sender_identity
@@ -235,7 +252,9 @@ class NeighborDiscover(DatagramProtocol):
         if responder_member is None:
             message_missing_identity = Message(neighbor_discovery=self,the_missing_identity=message.sender_identity)
             message_missing_identity.encode_missing_identity()
-            self.transport.write(message_missing_identity.packet,addr)
+            #self.transport.write(message_missing_identity.packet,addr)
+            self.send_message(message_missing_identity.packet,addr)
+            print("receive introduction response, send missing identity message")
 
         member = self.database.get_member(identity = identity)
         if member is not None:
@@ -246,7 +265,8 @@ class NeighborDiscover(DatagramProtocol):
             #message_crawl_request.encode_crawl_request()
             message_crawl = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
             message_crawl.encode_crawl()
-            self.transport.write(message_crawl.packet,addr)
+            #self.transport.write(message_crawl.packet,addr)
+            self.send_message(message_crawl.packet,addr)
             print("crawl sent")
 
     def on_puncture_request(self,packet,addr):
@@ -265,8 +285,10 @@ class NeighborDiscover(DatagramProtocol):
         message_puncture = Message(neighbor_discovery=self,source_private_address=self.private_address,
                                    source_public_address=self.public_address)
         message_puncture.encode_puncture()
-        self.transport.write(message_puncture.packet,private_address_to_puncture)
-        self.transport.write(message_puncture.packet,public_address_to_puncture)
+        #self.transport.write(message_puncture.packet,private_address_to_puncture)
+        self.send_message(message_puncture.packet,private_address_to_puncture)
+        #self.transport.write(message_puncture.packet,public_address_to_puncture)
+        self.send_message(message_puncture.packet,public_address_to_puncture)
 
     def on_missing_identity(self,packet,addr):
         """
@@ -278,7 +300,8 @@ class NeighborDiscover(DatagramProtocol):
         self.global_time = message_missing_identity.global_time
         message_identity = Message(neighbor_discovery=self)
         message_identity.encode_identity()
-        self.transport.write(message_identity.packet,addr)
+        #self.transport.write(message_identity.packet,addr)
+        self.send_message(message_identity.packet,addr)
 
     def on_identity(self,packet,addr):
         """
@@ -297,9 +320,10 @@ class NeighborDiscover(DatagramProtocol):
             requested_sequence_number = self.database.get_latest_sequence_number(public_key=message_identity.key_received) +1
             message_crawl = Message(neighbor_discovery=self,requested_sequence_number = requested_sequence_number)
             message_crawl.encode_crawl()
+            self.send_message(message_crawl.packet,addr)
+            print("receive identity, send crawl request")
         self.neighbor_group.associate_neigbhor_with_public_key(public_ip=addr,identity=sender_identity,public_key = message_identity.key_received)
         self.neighbor_group.insert_trusted_neighbor(Graph=self.database.trust_graph,my_public_key=self.my_public_key)
-
 
 
     def on_crawl_request(self,packet,addr):
@@ -398,7 +422,9 @@ class NeighborDiscover(DatagramProtocol):
     def run(self):
         self.reactor.run()
 
+
+
 if __name__ == "__main__":
-    neighbor_discovery = NeighborDiscover(port=25000,step_limit=5)
+    neighbor_discovery = NeighborDiscover(port=25000,step_limit=3600)
     neighbor_discovery.run()
     print("run finish")

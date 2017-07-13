@@ -204,7 +204,7 @@ class HalfBlockDatabase:
     def add_member(self,identity,public_key):
         script_add_member = u"INSERT INTO member (identity,public_key) VALUES(?,?)"
         data = (buffer(identity),buffer(public_key))
-        print("the buffered public_key is:")
+        print("add member to database,its public_key is:")
         print(public_key)
         cursor = self.conn.cursor()
         cursor.execute(script_add_member,data)
@@ -287,7 +287,11 @@ class HalfBlockDatabase:
         cursor.execute(script_get_blocks,(buffer(public_key),))
         self.conn.commit()
         results = cursor.fetchall()
-        return results
+        blocks = []
+        for result in results:
+            block = HalfBlock(database_record=result)
+            blocks.append(block)
+        return blocks
 
     def get_all_blocks(self):
         script_get_all =u"""

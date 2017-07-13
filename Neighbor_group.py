@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.DEBUG, filename=os.path.join(BASE, 'logfile'),
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-class NeighborGroup:
+class NeighborGroup(object):
 
 	def __init__(self,my_public_key=None):
 		"""
@@ -22,6 +22,7 @@ class NeighborGroup:
 		@incoming_neighbors: a list of incoming neighbor
 		@intro_neighbors: a list of intro neighbor
 		"""
+		self.teleport_home_possibility=1.0
 		self.TRUSTED_LIFE_SPAN=57.5
 		self.OUTGOING_LIFE_SPAN=57.5
 		self.INCOMING_LIFE_SPAN=57.5
@@ -31,6 +32,7 @@ class NeighborGroup:
 		self.outgoing_neighbors = [] #49.75% probability
 		self.incoming_neighbors = [] #24.825%probability
 		self.intro_neighbors= [] #24.825%probability
+		self.current_neighbor = None #the last neighbor we visited, it is used to determine which neighbor we want to visit next
 		#self.trusted_neighbors.append(Neighbor(("127.0.0.1",1235),("127.0.0.1",1235),"255,255.255.255"))
 		self.tracker.append(Neighbor((u"130.161.119.206"      , 6421),(u"130.161.119.206"      , 6421),"255,255.255.255"))
 		self.tracker.append(Neighbor((u"130.161.119.206"      , 6422),(u"130.161.119.206"      , 6422),"255,255.255.255"))
@@ -57,7 +59,7 @@ class NeighborGroup:
 			return ("trusted neighbor",self.trusted_neighbors)
 		elif(num_random>300):
 			return ("outgoing",self.outgoing_neighbors)
-		elif(num_random>150):
+		elif(num_random>250):
 			return ("incoming",self.incoming_neighbors)
 		else:
 			return ("intro",self.intro_neighbors)
@@ -65,18 +67,24 @@ class NeighborGroup:
 	#check if the candidate is already in a list
 	def is_in_list(self,neighbor,neighbor_list):
 		for c in neighbor_list:
-			if self.is_same_neighbor(neighbor,c):
+			if self.is_same_neighbor(neighbor,c,compare_identity=False):
 				return True
 			else:
 				continue
 		return False
 
 	#check whether the two neighbors are the same
-	def is_same_neighbor(self,neighbor1,neighbor2):
-		if(neighbor1.get_private_address()==neighbor2.get_private_address() and neighbor1.get_public_address()==neighbor2.get_public_address() and neighbor1.identity == neighbor2.identity):
-			return True
+	def is_same_neighbor(self,neighbor1,neighbor2,compare_identity=True):
+		if compare_identity==True:
+			if(neighbor1.get_private_address()==neighbor2.get_private_address() and neighbor1.get_public_address()==neighbor2.get_public_address() and neighbor1.identity == neighbor2.identity):
+				return True
+			else:
+				return False
 		else:
-			return False
+			if(neighbor1.get_private_address()==neighbor2.get_private_address() and neighbor1.get_public_address()==neighbor2.get_public_address()):
+				return True
+			else:
+				return False
 
 	def associate_neigbhor_with_public_key(self,private_ip = "0.0.0.0",public_ip = "0.0.0.0",identity = None,public_key= None):
 		"""
@@ -199,12 +207,27 @@ class NeighborGroup:
 
 	def get_neighbor_to_walk(self):
 		self.clean_stale_neighbors()
-		neighbors_list =[]
-		list_type=""
-		while(len(neighbors_list)==0):
-			list_type,neighbors_list = self.choose_group()
-		random.shuffle(neighbors_list)
-		return neighbors_list[0]
+		if self.current_neighbor==None:
+			neighbors_list =[]
+			list_type=""
+			while(len(neighbors_list)==0):
+				list_type,neighbors_list = self.choose_group()
+			random.shuffle(neighbors_list)
+			return neighbors_list[0]
+		else:
+			random_number = random.random()*200
+			#0.8 possibility to take next hop
+			if(random_number>=self.teleport_home_possibility*200):
+				return self.current_neighbor
+			#0.2 possibility to teleport home and take a random neighbor in our inventory
+			else:
+				self.current_neighbor=None
+				neighbors_list =[]
+				list_type=""
+				while(len(neighbors_list)==0):
+					list_type,neighbors_list = self.choose_group()
+				random.shuffle(neighbors_list)
+				return neighbors_list[0]
 
 	def get_neighbor_to_introduce(self,neighbor):
 		self.clean_stale_neighbors()
@@ -217,3 +240,106 @@ class NeighborGroup:
 			return None
 		else:
 			return None
+	def update_current_neighbor(self,responder,introduced_neighbor):
+		if self.current_neighbor==None or self.is_same_neighbor(responder,self.current_neighbor,compare_identity=False):
+			print("responder is the current neighbor")
+			self.current_neighbor = introduced_neighbor
+		else:
+			print("responder is not current neighbor, ignore it")
+			print("responder is:")
+			print responder.get_public_address()
+			print responder.get_private_address()
+			print("current neighbor is:")
+			print self.current_neighbor.get_public_address()
+			print self.current_neighbor.get_private_address()
+
+
+
+
+
+
+
+class Determinstic_NeighborGroup(NeighborGroup):
+	def __init__(self,walk_generator,node_table):
+		super(Determinstic_NeighborGroup, self).__init__()
+		self.walk_generator=walk_generator
+		self.node_table = node_table
+
+	def get_neighbor_to_walk(self):
+		node_id = self.walk_generator.get_next()
+		#now we have the node ip, we should translate it to ip and port
+		node = self.node_table.get_node_by_id(id=node_id)
+		node_address = (str(node.ip),int(node.port))
+		neighbor = Neighbor(node_address,node_address)
+		return neighbor
+
+
+
+
+class Pseudo_Random_NeighborGroup(NeighborGroup):
+	def __init__(self,node_table,walk_random_seed=232323,tracker_address=("1.1.1.1",1)):
+		super(Pseudo_Random_NeighborGroup, self).__init__()
+		self.tracker=[]
+		self.tracker.append(Neighbor(tracker_address,tracker_address))
+		#print("the trackers contain:")
+		#for tracker in self.tracker:
+			#print tracker.get_public_address
+		self.node_table=node_table
+		self.walk_generator = random.Random()
+		self.walk_generator.seed(walk_random_seed)
+
+	def choose_group(self):
+		if(len(self.outgoing_neighbors)==0 and len(self.incoming_neighbors)==0 and len(self.intro_neighbors)==0 and len(self.trusted_neighbors)==0):
+			print("all other lists are empty, return a tracker")
+			return ("tracker",self.tracker)
+		num_random = self.walk_generator.random()*1000
+		if(num_random>995):
+			print("take walk to a tracker")
+			return ("tracker",self.tracker)
+		elif(num_random>600):
+			print("take a walk to a trusted_neighbor")
+			return ("trusted neighbor",self.trusted_neighbors)
+		elif(num_random>300):
+			print("take a walk to a out_going_neighbor")
+			return ("outgoing",self.outgoing_neighbors)
+		elif(num_random>150):
+			print("take a walk to a incoming_neighbor")
+			return ("incoming",self.incoming_neighbors)
+		else:
+			print("take a walk to intro_neighbor")
+			return ("intro",self.intro_neighbors)
+
+	def get_neighbor_to_walk(self):
+		#we don't clean time out neighbors
+		#because as time goes by, due to the fluctation of laptop performance, for example, in turn 10000
+		#it is possible that a fast computer needs 30 seconds, hence its neighbor doesn't time out
+		#but in a slow computer, it takes 70 seconds, the old neighbors are time-out.
+		#so, even the random number generator is seudo random, the result is not repeatable
+		#self.clean_stale_neighbors()
+		if self.current_neighbor==None:
+			neighbors_list =[]
+			list_type=""
+			while(len(neighbors_list)==0):
+				list_type,neighbors_list = self.choose_group()
+			length = len(neighbors_list)
+			index=self.walk_generator.randint(0,length-1)
+			print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+			return neighbors_list[index]
+		else:
+			#random_number = random.random()*1000
+			random_number = self.walk_generator.random()*1000
+			#0.8 possibility to take next hop
+			if(random_number>=self.teleport_home_possibility*1000):
+				return self.current_neighbor
+			#0.2 possibility to teleport home and take a random neighbor in our inventory
+			else:
+				self.current_neighbor=None
+				neighbors_list =[]
+				list_type=""
+				while(len(neighbors_list)==0):
+					list_type,neighbors_list = self.choose_group()
+				#random.shuffle(neighbors_list)
+				length = len(neighbors_list)
+				index = self.walk_generator.randint(0,length-1)
+				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+				return neighbors_list[index]

@@ -459,7 +459,7 @@ class Message:
         signature = self.crypto.create_signature(self.my_key, packet)
         self.packet = packet + signature
 
-    """
+    
     #decode crawl request of half block
     def decode_crawl(self):
         offset = 23
@@ -467,12 +467,12 @@ class Message:
         member_id = self.packet[offset:offset + 20]
         self.sender_identity = member_id
         #uses directDistribution
-        self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+40)
+        self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset+20)
         print("global time is:" + str(self.global_time))
-        who, self.requested_sequence_number, limit = unpack_from(crawl_request_format, self.data, offset)
-    """
+        who, self.requested_sequence_number, limit = unpack_from(crawl_request_format, self.packet, offset+28)
+    
 
-    """
+    
     def encode_halfblock(self):
         data = self.block.pack()
         container = [self.start_header,chr(1)]
@@ -483,7 +483,7 @@ class Message:
         #since it uses NoAuthentication, the signiture is ""
         signature =""
         self.packet = packet+signature
-    """
+    
 
     def decode_halfblock(self):
         #self.packet ---> self.(global_time,private_address_to_puncture,public_address_to_puncture,identifier,signature,start_header)
