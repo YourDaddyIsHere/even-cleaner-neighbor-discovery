@@ -345,3 +345,5 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 				index = self.walk_generator.randint(0,length-1)
 				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
 				return neighbors_list[index]
+	def clean_stale_neighbors(self):
+		print("well...time to clean candidate, but we won't")
