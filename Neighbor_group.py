@@ -287,12 +287,14 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 		self.node_table=node_table
 		self.walk_generator = random.Random()
 		self.walk_generator.seed(walk_random_seed)
+		self.choose_group_generator = random.Random()
+		self.choose_group_generator.seed(walk_random_seed+100)
 
 	def choose_group(self):
 		if(len(self.outgoing_neighbors)==0 and len(self.incoming_neighbors)==0 and len(self.intro_neighbors)==0 and len(self.trusted_neighbors)==0):
 			print("all other lists are empty, return a tracker")
 			return ("tracker",self.tracker)
-		num_random = self.walk_generator.random()*1000
+		num_random = self.choose_group_generator.random()*1000
 		if(num_random>995):
 			print("take walk to a tracker")
 			return ("tracker",self.tracker)
