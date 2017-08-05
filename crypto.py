@@ -156,7 +156,7 @@ class ECCrypto(DispersyCrypto):
         assert isinstance(ec, DispersyKey), ec
         return ec.key_to_hash()
 
-    """
+    
     def is_valid_private_bin(self, string):
         "Returns True if the input is a valid public/private keypair stored in a binary format"
         try:
@@ -180,7 +180,7 @@ class ECCrypto(DispersyCrypto):
         if string.startswith("LibNaCLSK:"):
             return LibNaCLSK(string[10:])
         return M2CryptoSK(keystring=string)
-    """
+    
 
     def key_from_public_bin(self, string):
         "Get the EC from a public key in binary format."
@@ -402,26 +402,26 @@ class LibNaCLPK(DispersyKey):
         self.key = libnacl.public.PublicKey(pk)
         self.veri = libnacl.sign.Verifier(hex_vk)
 
-    """
+    
     def pub(self):
         return self
-    """
+    
 
     def has_secret_key(self):
         return False
 
-    """
+    
     def verify(self, signature, msg):
         return self.veri.verify(signature + msg)
-    """
+    
 
     def key_to_bin(self):
         return "LibNaCLPK:" + self.key.pk + self.veri.vk
 
-    """
+    
     def get_signature_length(self):
         return libnacl.crypto_sign_BYTES
-    """
+    
 
 
 class LibNaCLSK(LibNaCLPK):
@@ -444,10 +444,10 @@ class LibNaCLSK(LibNaCLPK):
     def signature(self, msg):
         return self.key.signature(msg)
 
-    """
+    
     def create_signature(self,msg):
         return self.key.signature(msg)
 
     def key_to_bin(self):
         return "LibNaCLSK:" + self.key.sk + self.key.seed
-    """
+    

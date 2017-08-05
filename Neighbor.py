@@ -25,7 +25,7 @@ class Neighbor:
 		self.public_key = public_key
 
 	def get_private_address(self):
-		return self.private_address
+		return (self.get_private_ip(),self.private_address[1])
 	def get_private_ip(self):
 		return socket.gethostbyname(self.private_address[0])
 	def get_public_ip(self):

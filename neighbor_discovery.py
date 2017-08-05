@@ -126,6 +126,7 @@ class NeighborDiscover(DatagramProtocol):
         self.send_message(message_introduction_request.packet,neighbor_to_walk_ADDR)
         logger.info("take step to: "+str(neighbor_to_walk_ADDR))
 
+
         if self.step_limit:
             self.step_count = self.step_count + 1
             if self.step_count> self.step_limit:
@@ -207,6 +208,8 @@ class NeighborDiscover(DatagramProtocol):
         if neighbor_to_introduce!=None:
             introduced_private_address = neighbor_to_introduce.get_private_address()
             introduced_public_address = neighbor_to_introduce.get_public_address()
+            print("private address is:"+introduced_private_address[0])
+            print("private address is:"+introduced_public_address[0])
         else:
             introduced_private_address=("0.0.0.0",0)
             introduced_public_address=("0.0.0.0",0)
@@ -223,7 +226,7 @@ class NeighborDiscover(DatagramProtocol):
             self.send_message(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
 
             #self.transport.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
-            self.send_message.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
+            #self.send_message.write(message_puncture_request.packet,neighbor_to_introduce.get_public_address())
 
         #self.transport.write(message_response.packet,addr)
         self.send_message(message_response.packet,addr)
@@ -234,6 +237,7 @@ class NeighborDiscover(DatagramProtocol):
         2.do public address vote to determine our public address
         3.add the introduced neighbor to neighbor_group
         """
+        self.database.add_visit_count_record(ip = addr[0],port=addr[1],public_key="000")
         message = Message(packet=packet)
         message.decode_introduction_response()
         self.global_time = message.global_time

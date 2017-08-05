@@ -22,7 +22,7 @@ class NeighborGroup(object):
 		@incoming_neighbors: a list of incoming neighbor
 		@intro_neighbors: a list of intro neighbor
 		"""
-		self.teleport_home_possibility=1.0
+		self.teleport_home_possibility=0.2
 		self.TRUSTED_LIFE_SPAN=57.5
 		self.OUTGOING_LIFE_SPAN=57.5
 		self.INCOMING_LIFE_SPAN=57.5
@@ -253,6 +253,11 @@ class NeighborGroup(object):
 			print self.current_neighbor.get_public_address()
 			print self.current_neighbor.get_private_address()
 
+	def clean_untrusted_neighbor(self):
+		self.outgoing_neighbors = []
+		self.incoming_neighbors = []
+		self.intro_neighbors= []
+
 
 
 
@@ -336,6 +341,7 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 			#0.2 possibility to teleport home and take a random neighbor in our inventory
 			else:
 				self.current_neighbor=None
+				#self.clean_untrusted_neighbor()
 				neighbors_list =[]
 				list_type=""
 				while(len(neighbors_list)==0):
@@ -346,4 +352,9 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
 				return neighbors_list[index]
 	def clean_stale_neighbors(self):
-		print("well...time to clean candidate, but we won't")
+		print("we clean neighbors basing on amount of neighbors in list rather than time")
+		if(len(self.trusted_neighbors)+len(self.outgoing_neighbors)+len(self.incoming_neighbors)+len(self.intro_neighbors)>=10):
+			self.trusted_neighbors=[]
+			self.outgoing_neighbors=[]
+			self.incoming_neighbors=[]
+			self.intro_neighbors=[]

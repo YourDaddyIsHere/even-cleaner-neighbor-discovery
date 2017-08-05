@@ -164,9 +164,20 @@ class HalfBlockDatabase:
                                )
 
                                """
+
+        create_visit_count = u"""
+                               CREATE TABLE IF NOT EXISTS visit_count(
+                               ip      TEXT,
+                               port       INT,
+                               public_key      TEXT,
+                               insert_time          TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                               )
+                               """
+
         cursor.execute(create_multichain_table)
         cursor.execute(create_member_table)
         cursor.execute(create_visit)
+        cursor.execute(create_visit_count)
         self.conn.commit()
 
         blocks = self.get_all_blocks()
@@ -346,6 +357,23 @@ class HalfBlockDatabase:
         results = cursor.fetchall()
         return results
 
+    def add_visit_count_record(self,ip,port,public_key):
+        script_insert = u"""
+                         INSERT into visit_count(ip,port,public_key) VALUES(?,?,?)
+                         """
+        cursor = self.conn.cursor()
+        cursor.execute(script_insert,(buffer(ip),port,buffer(public_key)))
+        self.conn.commit()
+    def get_all_visit_count_record(self):
+        script_query = u"""
+                         SELECT * from visit_count ORDER BY insert_time ASC
+                         """
+        cursor = self.conn.cursor()
+        cursor.execute(script_query)
+        self.conn.commit()
+        results = cursor.fetchall()
+        return results
+
 
 
 
@@ -422,8 +450,10 @@ class TrustGraph():
         A trust B if and only if there is a directed path from B to A
         :param your_node:the public key of yours
         :param node_to_be_trusted: the public key that you want to check "do I have trust path with him"
+        the path is limited with 1 hop
         """
-        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node):
+        #if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node):
+        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and self.Graph.has_edge(node_to_be_trusted,your_node):
             return True
         else:
             return False
