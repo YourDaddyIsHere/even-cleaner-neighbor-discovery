@@ -191,6 +191,7 @@ class NeighborGroup(object):
 			#if it has public key
 			if neighbor.public_key:
 				if Graph.has_trust_path(your_node=my_public_key,node_to_be_trusted=neighbor.public_key):
+					print("add a neighbor to trusted list--------------------------------------------------------")
 					self.add_neighbor_to_trusted_list(neighbor)
 					self.outgoing_neighbors = [x for x in self.outgoing_neighbors if x is not neighbor]
 		#check for incoming_neighbors
@@ -198,12 +199,15 @@ class NeighborGroup(object):
 			#if it has public key
 			if neighbor.public_key:
 				if Graph.has_trust_path(your_node=my_public_key,node_to_be_trusted=neighbor.public_key):
+					print("add a neighbor to trusted list--------------------------------------------------------")
 					self.add_neighbor_to_trusted_list(neighbor)
 					self.incoming_neighbors = [x for x in self.incoming_neighbors if x is not neighbor]
 		#we have no way to know the public key of an intro neighbor, ignore them
 
-
-		pass
+	def get_trusted_neighbor(self):
+		neighbor_list = self.trusted_neighbors
+		random.shuffle(neighbor_list)
+		return neighbor_list[0]
 
 	def get_neighbor_to_walk(self):
 		self.clean_stale_neighbors()
@@ -292,6 +296,8 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 		self.node_table=node_table
 		self.walk_generator = random.Random()
 		self.walk_generator.seed(walk_random_seed)
+		self.trusted_neighbor_generator = random.Random()
+		self.trusted_neighbor_generator.seed(walk_random_seed+50)
 		self.choose_group_generator = random.Random()
 		self.choose_group_generator.seed(walk_random_seed+100)
 
@@ -303,13 +309,13 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 		if(num_random>995):
 			print("take walk to a tracker")
 			return ("tracker",self.tracker)
-		elif(num_random>600):
+		elif(num_random>700):
 			print("take a walk to a trusted_neighbor")
 			return ("trusted neighbor",self.trusted_neighbors)
-		elif(num_random>300):
+		elif(num_random>400):
 			print("take a walk to a out_going_neighbor")
 			return ("outgoing",self.outgoing_neighbors)
-		elif(num_random>150):
+		elif(num_random>300):
 			print("take a walk to a incoming_neighbor")
 			return ("incoming",self.incoming_neighbors)
 		else:
@@ -358,3 +364,7 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 			self.outgoing_neighbors=[]
 			self.incoming_neighbors=[]
 			self.intro_neighbors=[]
+
+	def get_trusted_neighbor(self):
+		index = self.trusted_neighbor_generator.randint(0,len(self.trusted_neighbors)-1)
+		return self.trusted_neighbors[index]
