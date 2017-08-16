@@ -728,7 +728,18 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 			random_number = self.teleport_home_generator.random()*1000
 			#possibility to take next hop
 			if(random_number>=self.teleport_home_possibility*1000):
-				return self.current_neighbor
+				neighbors_list =[]
+				list_type=""
+				while(len(neighbors_list)==0):
+					list_type,neighbors_list = self.choose_group()
+				print("take "+str(list_type)+" to walk")
+				#random.shuffle(neighbors_list)
+				length = len(neighbors_list)
+				index = self.walk_generator.randint(0,length-1)
+				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+				self.current_neighbor = neighbors_list[index]
+				return neighbors_list[index]
+				#return self.current_neighbor
 			#possibility to teleport home and take a random neighbor in our inventory
 			#if there are trusted  neighbors in list
 			elif len(self.trusted_neighbors)>0:
