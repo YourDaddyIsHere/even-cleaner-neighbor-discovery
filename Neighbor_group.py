@@ -739,15 +739,32 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
 				self.current_neighbor = neighbors_list[index]
 				return neighbors_list[index]
+
 				#return self.current_neighbor
 			#possibility to teleport home and take a random neighbor in our inventory
 			#if there are trusted  neighbors in list
-			elif len(self.trusted_neighbors)>0:
-				neighbor_to_return = self.get_trusted_neighbor()
+
+			#remove the elif if you want a transtive random walker
+			#elif len(self.trusted_neighbors)>0:
+				#neighbor_to_return = self.get_trusted_neighbor()
+				#self.current_neighbor = neighbor_to_return
+				#return neighbor_to_return
+
+
+				#logger.info("teleport home with trusted neighbor")
+				#self.current_neighbor=None
 				#self.clean_untrusted_neighbor()
-				self.current_neighbor = neighbor_to_return
-				return neighbor_to_return
-				logger.info("teleport home with trusted neighbor")
+				#neighbors_list =[]
+				#list_type=""
+				#while(len(neighbors_list)==0):
+					#list_type,neighbors_list = self.choose_group()
+				#print("take "+str(list_type)+" to walk")
+				#random.shuffle(neighbors_list)
+				#length = len(neighbors_list)
+				#index = self.walk_generator.randint(0,length-1)
+				#print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+				#self.current_neighbor = neighbors_list[index]
+				#return neighbors_list[index]
 			#if there are not trusted neighbor in list
 			else:
 				logger.info("teleport home without trusted neighbor")
