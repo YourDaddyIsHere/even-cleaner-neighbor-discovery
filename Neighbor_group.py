@@ -274,6 +274,7 @@ class NeighborGroup(object):
 ############################################
 
 
+"""
 
 class Step_NeighborGroup(NeighborGroup):
 	#a neighbor group that neighbor time-out by steps rather than time:
@@ -370,6 +371,7 @@ class Step_NeighborGroup(NeighborGroup):
 			if(self.walking_count-(neighbor.walking_count)>self.TRUSTED_LIFE_SPAN):
 				trusted_neighbors_to_remove.append(neighbor)
 		self.trusted_neighbors= [x for x in self.trusted_neighbors if x not in trusted_neighbors_to_remove]
+"""
 
 ############################################
 ############################################
@@ -660,6 +662,238 @@ class Pseudo_Random_no_transitive_Trust_NeighborGroup(NeighborGroup):
 ############################################
 ############################################
 ############################################
+
+
+class Pseudo_Random_teleport_home_NeighborGroup(NeighborGroup):
+	def __init__(self,node_table,walk_random_seed=232323,tracker_address=("1.1.1.1",1),teleport_home_possibility=0.5):
+		super(Pseudo_Random_teleport_home_NeighborGroup, self).__init__()
+		self.tracker=[]
+		self.tracker.append(Neighbor(tracker_address,tracker_address))
+		self.walking_count = 0
+		self.TRUSTED_LIFE_SPAN=20
+		self.OUTGOING_LIFE_SPAN=20
+		self.INCOMING_LIFE_SPAN=20
+		self.INTRO_LIFE_SPAN = 20
+		self.teleport_home_possibility = teleport_home_possibility
+		#print("the trackers contain:")
+		#for tracker in self.tracker:
+			#print tracker.get_public_address
+		self.node_table=node_table
+		self.walk_generator = random.Random()
+		self.walk_generator.seed(walk_random_seed)
+		self.teleport_home_generator = random.Random()
+		self.teleport_home_generator.seed(walk_random_seed+50)
+		self.trusted_neighbor_generator = random.Random()
+		self.trusted_neighbor_generator.seed(walk_random_seed+50)
+		self.choose_group_generator = random.Random()
+		self.choose_group_generator.seed(walk_random_seed+100)
+
+	def choose_group(self):
+		if(len(self.outgoing_neighbors)==0 and len(self.incoming_neighbors)==0 and len(self.intro_neighbors)==0 and len(self.trusted_neighbors)==0):
+			print("all other lists are empty, return a tracker")
+			return ("tracker",self.tracker)
+		num_random = self.choose_group_generator.random()*1000
+		if(num_random>995):
+			print("take walk to a tracker")
+			self.clean_non_tracker_neighbor()
+			return ("tracker",self.tracker)
+		elif(num_random>500):
+			print("take a walk to a trusted_neighbor")
+			return ("trusted neighbor",self.trusted_neighbors)
+		elif(num_random>300):
+			print("take a walk to a out_going_neighbor")
+			return ("outgoing",self.outgoing_neighbors)
+		elif(num_random>150):
+			print("take a walk to a incoming_neighbor")
+			return ("incoming",self.incoming_neighbors)
+		else:
+			print("take a walk to intro_neighbor")
+			return ("intro",self.intro_neighbors)
+
+	def get_neighbor_to_walk(self):
+		#we don't clean time out neighbors
+		#because as time goes by, due to the fluctation of laptop performance, for example, in turn 10000
+		#it is possible that a fast computer needs 30 seconds, hence its neighbor doesn't time out
+		#but in a slow computer, it takes 70 seconds, the old neighbors are time-out.
+		#so, even the random number generator is seudo random, the result is not repeatable
+		#self.clean_stale_neighbors()
+		self.clean_stale_neighbors()
+		self.walking_count = self.walking_count+1
+		if self.current_neighbor==None:
+			neighbors_list =[]
+			list_type=""
+			while(len(neighbors_list)==0):
+				list_type,neighbors_list = self.choose_group()
+			length = len(neighbors_list)
+			index=self.walk_generator.randint(0,length-1)
+			print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+			return neighbors_list[index]
+		else:
+			#random_number = random.random()*1000
+			random_number = self.teleport_home_generator.random()*1000
+			#possibility to take next hop
+			if(random_number>=self.teleport_home_possibility*1000):
+				return self.current_neighbor
+			
+			#if there are trusted  neighbors in list
+
+			#remove the elif if you want a transtive random walker
+			#elif len(self.trusted_neighbors)>0:
+				#neighbor_to_return = self.get_trusted_neighbor()
+				#self.current_neighbor = neighbor_to_return
+				#return neighbor_to_return
+
+
+				#logger.info("teleport home with trusted neighbor")
+				#self.current_neighbor=None
+				#self.clean_untrusted_neighbor()
+				#neighbors_list =[]
+				#list_type=""
+				#while(len(neighbors_list)==0):
+					#list_type,neighbors_list = self.choose_group()
+				#print("take "+str(list_type)+" to walk")
+				#random.shuffle(neighbors_list)
+				#length = len(neighbors_list)
+				#index = self.walk_generator.randint(0,length-1)
+				#print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+				#self.current_neighbor = neighbors_list[index]
+				#return neighbors_list[index]
+			#if there are not trusted neighbor in list
+			#possibility to teleport home and take a random neighbor in our inventory
+			else:
+				logger.info("teleport home without trusted neighbor")
+				self.current_neighbor=None
+				#self.clean_untrusted_neighbor()
+				neighbors_list =[]
+				list_type=""
+				while(len(neighbors_list)==0):
+					list_type,neighbors_list = self.choose_group()
+				print("take "+str(list_type)+" to walk")
+				#random.shuffle(neighbors_list)
+				length = len(neighbors_list)
+				index = self.walk_generator.randint(0,length-1)
+				print("take a walk to neighbor: "+str(neighbors_list[index].get_public_address()))
+				self.current_neighbor = neighbors_list[index]
+				return neighbors_list[index]
+
+	"""
+	def clean_stale_neighbors(self):
+		#if(len(self.trusted_neighbors)+len(self.outgoing_neighbors)+len(self.incoming_neighbors)+len(self.intro_neighbors)>=20):
+		if(self.walking_count>20):
+			print("we clean neighbors basing on amount of neighbors in list rather than time")
+			logger.info("we have more than 20 neighbors, clean some")
+			self.trusted_neighbors=[]
+			self.outgoing_neighbors=[]
+			self.incoming_neighbors=[]
+			self.intro_neighbors=[]
+			self.walking_count=0
+			self.current_neighbor = self.tracker[0]
+	"""
+
+	def get_trusted_neighbor(self):
+		print("here is get trusted neighbor-------------------------------------------")
+		index = self.trusted_neighbor_generator.randint(0,len(self.trusted_neighbors)-1)
+		return self.trusted_neighbors[index]
+
+
+
+	def add_neighbor_to_outgoing_list(self,neighbor):
+		neighbor.walking_count = self.walking_count
+		self.clean_stale_neighbors()
+		if not (self.is_in_list(neighbor,self.tracker) or self.is_in_list(neighbor,self.outgoing_neighbors) or self.is_in_list(neighbor,self.trusted_neighbors)):
+			self.outgoing_neighbors.append(neighbor)
+		print "the outgoing(walk_list) is now:"
+		for neighbor in self.outgoing_neighbors:
+			print neighbor.get_public_address()
+
+
+	def add_neighbor_to_incoming_list(self,neighbor):
+		neighbor.walking_count = self.walking_count
+		self.clean_stale_neighbors()
+		if not (self.is_in_list(neighbor,self.tracker) or self.is_in_list(neighbor,self.outgoing_neighbors) or self.is_in_list(neighbor,self.incoming_neighbors) or self.is_in_list(neighbor,self.trusted_neighbors)):
+			self.incoming_neighbors.append(neighbor)
+		print "the incoming(stumble_list) is now:"
+		for neighbor in self.incoming_neighbors:
+			print [neighbor.get_private_address(),neighbor.get_public_address()]
+
+
+	def add_neighbor_to_intro_list(self,neighbor):
+		neighbor.walking_count = self.walking_count
+		self.clean_stale_neighbors()
+		if not (self.is_in_list(neighbor,self.tracker) or self.is_in_list(neighbor,self.outgoing_neighbors) or self.is_in_list(neighbor,self.incoming_neighbors) or self.is_in_list(neighbor,self.intro_neighbors) or self.is_in_list(neighbor,self.trusted_neighbors)):
+			self.intro_neighbors.append(neighbor)
+		print "the intro_list is now:"
+		for neighbor in self.intro_neighbors:
+			print neighbor.get_public_address()
+
+	def add_neighbor_to_trusted_list(self,neighbor):
+		self.clean_stale_neighbors()
+		if not (self.is_in_list(neighbor,self.tracker) or self.is_in_list(neighbor,self.trusted_neighbors)):
+			self.trusted_neighbors.append(neighbor)
+		print "the trusted_list is now:"
+		for neighbor in self.trusted_neighbors:
+			print neighbor.get_public_address()
+
+	def insert_trusted_neighbor(self,Graph,my_public_key):
+		#insert member into trusted_neighbor list according to latest Trusted_graph
+		#check outgoing neighbors
+		for neighbor in self.outgoing_neighbors:
+			#if it has public key
+			if neighbor.public_key:
+				if Graph.has_trust_path(your_node=my_public_key,node_to_be_trusted=neighbor.public_key):
+					print("add a neighbor to trusted list--------------------------------------------------------")
+					self.add_neighbor_to_trusted_list(neighbor)
+					self.outgoing_neighbors = [x for x in self.outgoing_neighbors if x is not neighbor]
+		#check for incoming_neighbors
+		for neighbor in self.incoming_neighbors:
+			#if it has public key
+			if neighbor.public_key:
+				if Graph.has_trust_path(your_node=my_public_key,node_to_be_trusted=neighbor.public_key):
+					print("add a neighbor to trusted list--------------------------------------------------------")
+					self.add_neighbor_to_trusted_list(neighbor)
+					self.incoming_neighbors = [x for x in self.incoming_neighbors if x is not neighbor]
+		#we have no way to know the public key of an intro neighbor, ignore them
+
+	def clean_stale_neighbors(self):
+		#clean neighbors if they exceed their life span
+		now = time.time()
+		outgoing_neighbors_to_remove=[]
+		for neighbor in self.outgoing_neighbors:
+			if(self.walking_count-(neighbor.walking_count)>self.OUTGOING_LIFE_SPAN):
+				print "cleaning a time out walk candidate........"+str(neighbor.get_private_address())
+				outgoing_neighbors_to_remove.append(neighbor)
+		self.outgoing_neighbors =[x for x in self.outgoing_neighbors if x not in outgoing_neighbors_to_remove]
+
+		incoming_neighbors_to_remove =[]
+		for neighbor in self.incoming_neighbors:
+			if(self.walking_count-(neighbor.walking_count)>self.INCOMING_LIFE_SPAN):
+				print "cleaning a time out stumble candidate........"+str(neighbor.get_private_address())
+				incoming_neighbors_to_remove.append(neighbor)
+		self.incoming_neighbors = [x for x in self.incoming_neighbors if x not in incoming_neighbors_to_remove]
+
+		intro_neighbors_to_remove =[]
+		for neighbor in self.intro_neighbors:
+			if(self.walking_count-(neighbor.walking_count)>self.INTRO_LIFE_SPAN):
+				intro_neighbors_to_remove.append(neighbor)
+		self.intro_neighbors = [x for x in self.intro_neighbors if x not in intro_neighbors_to_remove]
+
+		trusted_neighbors_to_remove =[]
+		for neighbor in self.trusted_neighbors:
+			if(self.walking_count-(neighbor.walking_count)>self.TRUSTED_LIFE_SPAN):
+				trusted_neighbors_to_remove.append(neighbor)
+		self.trusted_neighbors= [x for x in self.trusted_neighbors if x not in trusted_neighbors_to_remove]
+
+
+
+
+
+
+
+
+############################################
+############################################
+############################################
+
 class Pseudo_Random_NeighborGroup(NeighborGroup):
 	def __init__(self,node_table,walk_random_seed=232323,tracker_address=("1.1.1.1",1)):
 		super(Pseudo_Random_NeighborGroup, self).__init__()
