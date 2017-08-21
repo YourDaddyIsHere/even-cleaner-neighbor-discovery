@@ -20,6 +20,11 @@ else:
 import logging
 from hashlib import sha256
 
+logging.basicConfig(level=logging.DEBUG, filename=os.path.join(BASE, 'logfile'), filemode="a+",format="%(asctime)-15s %(levelname)-8s %(message)s")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
 HASH_LENGTH = 32
 SIG_LENGTH = 64
 PK_LENGTH = 74
@@ -452,8 +457,10 @@ class TrustGraph():
         :param node_to_be_trusted: the public key that you want to check "do I have trust path with him"
         the path is limited with 1 hop
         """
-        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node) and len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))<=3:
+        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node) and len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))<=3 and len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))>1:
         #if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and self.Graph.has_edge(node_to_be_trusted,your_node):
+            print("have a trusted path with length "+str(len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))))
+            logger.info("have a trusted path with length "+str(len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))))
             return True
         else:
             return False

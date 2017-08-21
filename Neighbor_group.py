@@ -738,10 +738,10 @@ class Pseudo_Random_teleport_home_NeighborGroup(NeighborGroup):
 			#if there are trusted  neighbors in list
 
 			#remove the elif if you want a transtive random walker
-			#elif len(self.trusted_neighbors)>0:
-				#neighbor_to_return = self.get_trusted_neighbor()
-				#self.current_neighbor = neighbor_to_return
-				#return neighbor_to_return
+			elif len(self.trusted_neighbors)>0:
+				neighbor_to_return = self.get_trusted_neighbor()
+				self.current_neighbor = neighbor_to_return
+				return neighbor_to_return
 
 
 				#logger.info("teleport home with trusted neighbor")
