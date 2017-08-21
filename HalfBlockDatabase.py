@@ -452,8 +452,8 @@ class TrustGraph():
         :param node_to_be_trusted: the public key that you want to check "do I have trust path with him"
         the path is limited with 1 hop
         """
-        #if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node):
-        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and self.Graph.has_edge(node_to_be_trusted,your_node):
+        if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and nx.has_path(self.Graph,source=node_to_be_trusted,target=your_node) and len(nx.shortest_path(self.Graph,source=node_to_be_trusted,target=your_node))<=3:
+        #if self.Graph.has_node(your_node) and self.Graph.has_node(node_to_be_trusted) and self.Graph.has_edge(node_to_be_trusted,your_node):
             return True
         else:
             return False
