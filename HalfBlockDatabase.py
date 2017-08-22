@@ -214,7 +214,7 @@ class HalfBlockDatabase:
                 block.pack_db_insert())
             if commit:
                 self.conn.commit()
-                print("block added, public key:"+block.public_key)
+                #print("block added, public key:"+block.public_key)
             self.trust_graph.add_block(block)
 
     def add_member(self,identity,public_key):

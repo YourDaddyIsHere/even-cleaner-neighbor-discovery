@@ -58,6 +58,7 @@ class NeighborDiscover(DatagramProtocol):
         self.neighbor_group =neighbor_group
         self.global_time=1
         self.is_listening=is_listening
+        self.block_received = 0
         #hard coded master_key for multichain community
         """
         self.master_key = "3081a7301006072a8648ce3d020106052b81040027038192000407afa96c83660dccfbf02a45b68f4bc" + \
@@ -100,7 +101,7 @@ class NeighborDiscover(DatagramProtocol):
         #every 5 seconds, we take a step (visit a known neighbor)
         if(self.is_tracker==False):
             loop = task.LoopingCall(self.visit_a_neighbor)
-            loop.start(1.0)
+            loop.start(0.1)
 
     def stopProtocol(self):
         #time.sleep(5)
@@ -157,8 +158,8 @@ class NeighborDiscover(DatagramProtocol):
         #call different message handler according to its message_type
         #TODO:we should ask for public key of other members here
         message_type = ord(packet[22])
-        logger.info("message id is:"+str(message_type))
-        print("message id is:"+str(message_type))
+        #logger.info("message id is:"+str(message_type))
+        #print("message id is:"+str(message_type))
         if message_type == 247:
             print("here is a missing-identity message")
             self.on_missing_identity(packet,addr)
@@ -177,7 +178,7 @@ class NeighborDiscover(DatagramProtocol):
             print("here is an dispersy-identity")
             self.on_identity(packet,addr)
         if message_type == 1:
-            print ("here is a halfblock message")
+            #print ("here is a halfblock message")
             self.on_halfblock(packet,addr)
         #if message_type == 2:
             #print("here is a crawl_request")
@@ -359,6 +360,11 @@ class NeighborDiscover(DatagramProtocol):
         #but we add a block to the database without checking whether it is already in the database
         #it is time consuming to check it using SELECT ... WHERE has_requester =? 
         #if a block is already in database, the database will returns a PRIMARY KEY constraint error. It does no harm to us
+        #self.block_received = self.block_received +1
+        #if self.block_received%30000==0:
+            #self.database.add_block(block)
+        #else:
+            #self.database.add_block(block,commit=False)
         self.database.add_block(block)
 
     """

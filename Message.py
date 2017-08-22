@@ -492,7 +492,7 @@ class Message:
         #puncture-request uses NoAuthentication
         #puncture-request uses DirectDistribution
         self.global_time, = self.encoder_and_decoder_global_time.unpack_from(self.packet, offset)
-        print("global time is:" + str(self.global_time))
+        #print("global time is:" + str(self.global_time))
         if len(self.packet) < offset + 14:
             print("the length is insufficient")
 
