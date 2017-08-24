@@ -670,7 +670,7 @@ class Pseudo_Random_teleport_home_NeighborGroup(NeighborGroup):
 		self.tracker=[]
 		self.tracker.append(Neighbor(tracker_address,tracker_address))
 		self.walking_count = 0
-		self.TRUSTED_LIFE_SPAN=20
+		self.TRUSTED_LIFE_SPAN=200
 		self.OUTGOING_LIFE_SPAN=20
 		self.INCOMING_LIFE_SPAN=20
 		self.INTRO_LIFE_SPAN = 20
@@ -900,7 +900,7 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 		self.tracker=[]
 		self.tracker.append(Neighbor(tracker_address,tracker_address))
 		self.walking_count = 0
-		self.TRUSTED_LIFE_SPAN=20
+		self.TRUSTED_LIFE_SPAN=200
 		self.OUTGOING_LIFE_SPAN=20
 		self.INCOMING_LIFE_SPAN=20
 		self.INTRO_LIFE_SPAN = 20
