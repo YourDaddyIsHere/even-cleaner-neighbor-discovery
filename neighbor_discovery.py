@@ -180,9 +180,9 @@ class NeighborDiscover(DatagramProtocol):
         if message_type == 1:
             #print ("here is a halfblock message")
             self.on_halfblock(packet,addr)
-        #if message_type == 2:
-            #print("here is a crawl_request")
-            #self.on_crawl_request(packet,addr)
+        if message_type == 2:
+            print("here is a crawl_request")
+            self.on_crawl_request(packet,addr)
         #if message_type == 3:
             #print("here is a crawl_response")
             #self.on_crawl_response(packet,addr)
@@ -332,7 +332,16 @@ class NeighborDiscover(DatagramProtocol):
 
 
     def on_crawl_request(self,packet,addr):
-        pass
+        message_crawl_request = Message(packet=packet)
+        message_crawl_request.decode_crawl()
+        blocks = self.database.get_blocks_since(public_key=self.my_public_key,sequence_number=message_crawl_request.requested_sequence_number)
+        #print("get a crawl request!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        for block in blocks:
+            #print("send a block:")
+            #print(block.public_key)
+            message = Message(neighbor_discovery=self,block = block)
+            message.encode_halfblock()
+            self.send_message(message.packet,addr)
 
     def on_crawl_response(self,packet,addr):
         """
