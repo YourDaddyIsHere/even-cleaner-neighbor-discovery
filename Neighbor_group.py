@@ -493,10 +493,10 @@ class Pseudo_Random_no_transitive_Trust_NeighborGroup(NeighborGroup):
 		self.tracker=[]
 		self.tracker.append(Neighbor(tracker_address,tracker_address))
 		self.walking_count = 0
-		self.TRUSTED_LIFE_SPAN=20
-		self.OUTGOING_LIFE_SPAN=20
-		self.INCOMING_LIFE_SPAN=20
-		self.INTRO_LIFE_SPAN = 20
+		self.TRUSTED_LIFE_SPAN=12
+		self.OUTGOING_LIFE_SPAN=12
+		self.INCOMING_LIFE_SPAN=12
+		self.INTRO_LIFE_SPAN = 6
 		#print("the trackers contain:")
 		#for tracker in self.tracker:
 			#print tracker.get_public_address
@@ -670,10 +670,10 @@ class Pseudo_Random_teleport_home_NeighborGroup(NeighborGroup):
 		self.tracker=[]
 		self.tracker.append(Neighbor(tracker_address,tracker_address))
 		self.walking_count = 0
-		self.TRUSTED_LIFE_SPAN=200
-		self.OUTGOING_LIFE_SPAN=20
-		self.INCOMING_LIFE_SPAN=20
-		self.INTRO_LIFE_SPAN = 20
+		self.TRUSTED_LIFE_SPAN=120
+		self.OUTGOING_LIFE_SPAN=12
+		self.INCOMING_LIFE_SPAN=12
+		self.INTRO_LIFE_SPAN = 6
 		self.teleport_home_possibility = teleport_home_possibility
 		#print("the trackers contain:")
 		#for tracker in self.tracker:
@@ -900,10 +900,10 @@ class Pseudo_Random_NeighborGroup(NeighborGroup):
 		self.tracker=[]
 		self.tracker.append(Neighbor(tracker_address,tracker_address))
 		self.walking_count = 0
-		self.TRUSTED_LIFE_SPAN=200
-		self.OUTGOING_LIFE_SPAN=20
-		self.INCOMING_LIFE_SPAN=20
-		self.INTRO_LIFE_SPAN = 20
+		self.TRUSTED_LIFE_SPAN=120
+		self.OUTGOING_LIFE_SPAN=12
+		self.INCOMING_LIFE_SPAN=12
+		self.INTRO_LIFE_SPAN = 6
 		#print("the trackers contain:")
 		#for tracker in self.tracker:
 			#print tracker.get_public_address

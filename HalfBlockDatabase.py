@@ -274,7 +274,7 @@ class HalfBlockDatabase:
         return db_result if db_result is not None else 0
 
     def get_blocks_since(self,public_key,sequence_number):
-        db_query = "SELECT * FROM multi_chain WHERE sequence_number >= ? AND (public_key = ?) OR (link_public_key = ?)"
+        db_query = "SELECT * FROM multi_chain WHERE sequence_number >= ? AND (public_key = ?) OR (link_public_key = ?) LIMIT 10"
         cursor = self.conn.cursor()
         print("the type of db query is:")
         print(type(db_query))
